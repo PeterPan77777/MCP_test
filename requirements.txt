@@ -5,4 +5,7 @@ fastmcp==2.5.2
 # HTTP Client für Context7 API
 httpx>=0.25.0
 
+# SSE für DigitalOcean Anti-Buffering
+sse-starlette>=1.6.0
+
 # Starlette ist bereits in FastMCP enthalten 

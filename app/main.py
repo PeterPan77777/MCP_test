@@ -5,10 +5,12 @@ Nutzt FastMCP 2.5.2 mit stateless HTTP für bessere Skalierbarkeit
 import uuid
 import asyncio
 import httpx
+import json
 from typing import Optional, Dict, Any
 from fastmcp import FastMCP, Context
 from starlette.requests import Request
 from starlette.responses import StreamingResponse, JSONResponse, PlainTextResponse
+from sse_starlette import EventSourceResponse
 
 # ---------- Context7 Client -------------
 class Context7Client:
@@ -88,38 +90,57 @@ async def health_check(request: Request) -> PlainTextResponse:
     """Health Check für DigitalOcean"""
     return PlainTextResponse("OK", status_code=200)
 
-# SSE Handler für n8n Kompatibilität
-async def sse_generator():
-    """
-    N8n-kompatibler SSE Handshake:
-        event: endpoint
-        data: /messages?sessionId=<uuid>
-    Danach Keep-alive Pings alle 15s
-    """
-    sid = uuid.uuid4().hex
-    
-    # 1. Handshake-Frame (sofort!)
-    yield f"event: endpoint\ndata: /messages?sessionId={sid}\n\n"
-    
-    # 2. Optional: done-Frame
-    yield f"event: done\ndata: {{\"type\":\"done\",\"client_id\":\"{sid}\"}}\n\n"
-    
-    # 3. Keep-alive-Pings
-    while True:
-        await asyncio.sleep(15)
-        yield ": ping\n\n"
-
+# --------- SSE für MCP Inspector & n8n (DigitalOcean Anti-Buffering) ----------
 @mcp.custom_route("/sse", methods=["GET"])
-async def sse_endpoint(request: Request) -> StreamingResponse:
-    """SSE Endpoint für n8n MCP Client"""
-    headers = {
-        "Cache-Control": "no-cache, no-transform",
-        "Content-Type": "text/event-stream",
-        "Connection": "keep-alive",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type",
-    }
-    return StreamingResponse(sse_generator(), headers=headers)
+async def sse_endpoint(request: Request) -> EventSourceResponse:
+    """
+    SSE Endpoint für MCP Inspector & n8n
+    Optimiert für DigitalOcean mit Anti-Buffering Headers
+    """
+    
+    async def event_stream():
+        sid = uuid.uuid4().hex
+        
+        # 1️⃣ Handshake-Frame sofort senden (MCP Inspector erwartet das)
+        yield {
+            "event": "endpoint",
+            "data": f"/messages?sessionId={sid}"
+        }
+        
+        # 2️⃣ Done-Frame für n8n Kompatibilität
+        yield {
+            "event": "done", 
+            "data": json.dumps({
+                "type": "done",
+                "client_id": sid,
+                "server": "Context7-MCP-Server"
+            })
+        }
+        
+        # 3️⃣ Keep-alive Pings (DigitalOcean kappt nach 60s)
+        while True:
+            await asyncio.sleep(15)  
+            yield {"comment": "ping"}
+    
+    # DigitalOcean Anti-Buffering Headers
+    return EventSourceResponse(
+        event_stream(),
+        headers={
+            # Verhindert Nginx Proxy Buffering
+            "Cache-Control": "no-cache, no-transform",
+            "X-Accel-Buffering": "no",  # DigitalOcean spezifisch!
+            
+            # SSE Standard Headers
+            "Content-Type": "text/event-stream",
+            "Connection": "keep-alive",
+            "Content-Encoding": "identity",  # Keine Kompression
+            
+            # CORS für Inspector
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "Content-Type, Accept",
+            "Access-Control-Allow-Methods": "GET",
+        },
+    )
 
 # ---------- MCP Tools -------------
 @mcp.tool()
