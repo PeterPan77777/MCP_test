@@ -101,39 +101,31 @@ async def sse_endpoint(request: Request) -> EventSourceResponse:
     async def event_stream():
         sid = uuid.uuid4().hex
         
-        # 1️⃣ Handshake-Frame sofort senden (MCP Inspector erwartet das)
+        # 1️⃣ NUR Handshake-Frame (kein done-Frame!)
+        # done-Frame bricht Inspector mit AbortError ab
         yield {
             "event": "endpoint",
             "data": f"/messages?sessionId={sid}"
         }
         
-        # 2️⃣ Done-Frame für n8n Kompatibilität
-        yield {
-            "event": "done", 
-            "data": json.dumps({
-                "type": "done",
-                "client_id": sid,
-                "server": "Context7-MCP-Server"
-            })
-        }
-        
-        # 3️⃣ Keep-alive Pings (DigitalOcean kappt nach 60s)
+        # 2️⃣ Keep-alive alle 20s (DO-Proxy kappt nach ~55s)
         while True:
-            await asyncio.sleep(15)  
+            await asyncio.sleep(20)  # Nicht 15s - 20s ist sicherer
+            # Kommentar-Frame ist SSE-spec-konform und löst keine AbortErrors aus
             yield {"comment": "ping"}
     
-    # DigitalOcean Anti-Buffering Headers
+    # DigitalOcean Anti-Buffering Headers (nach Best Practices)
     return EventSourceResponse(
         event_stream(),
         headers={
-            # Verhindert Nginx Proxy Buffering
-            "Cache-Control": "no-cache, no-transform",
-            "X-Accel-Buffering": "no",  # DigitalOcean spezifisch!
+            # Kritische Anti-Buffering Headers
+            "X-Accel-Buffering": "no",           # nginx/DO proxy buffering aus
+            "Cache-Control": "no-cache, no-transform",  # Keine Kompression durch Proxies
+            "Content-Encoding": "identity",      # Explizit keine gzip/br
             
             # SSE Standard Headers
             "Content-Type": "text/event-stream",
             "Connection": "keep-alive",
-            "Content-Encoding": "identity",  # Keine Kompression
             
             # CORS für Inspector
             "Access-Control-Allow-Origin": "*",
