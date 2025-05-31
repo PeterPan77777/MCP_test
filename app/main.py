@@ -226,8 +226,9 @@ Verfügbare Tools:
 # ---------- FastAPI App -------------
 app = FastAPI(title="Context7 MCP Server", version="1.0.0")
 
-# Modernes streamable-HTTP unter /mcp
-app.mount("/mcp", mcp.as_fastapi())
+# Modernes streamable-HTTP unter /mcp (FastMCP 2.2 korrekte API)
+mcp_app = mcp.http_app(path="/mcp")
+app.mount("/mcp", mcp_app)
 
 @app.get("/health")
 async def health():
