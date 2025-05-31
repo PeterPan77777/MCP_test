@@ -226,8 +226,17 @@ Verfügbare Tools:
 # ---------- FastAPI App -------------
 app = FastAPI(title="Context7 MCP Server", version="1.0.0")
 
-# Modernes streamable-HTTP unter /mcp (FastMCP 2.2 korrekte API)
+# Erstelle die MCP ASGI App korrekt (FastMCP 2.2 API)
 mcp_app = mcp.http_app(path="/mcp")
+
+# Korrekte Lifespan-Behandlung für FastAPI
+app = FastAPI(
+    title="Context7 MCP Server", 
+    version="1.0.0",
+    lifespan=mcp_app.lifespan
+)
+
+# Mount der MCP App unter /mcp
 app.mount("/mcp", mcp_app)
 
 @app.get("/health")
