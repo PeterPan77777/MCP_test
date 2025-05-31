@@ -1,0 +1,12 @@
+name: context7-mcp-server
+region: fra
+
+services:
+  - name: mcp-server
+    environment_slug: python
+    
+    run_command: "python main.py"
+    
+    http_port: 8080
+    
+    instance_size_slug: basic-xxs 

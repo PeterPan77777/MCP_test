@@ -9,8 +9,8 @@ services:
     instance_size_slug: basic-xxs
     instance_count: 1
 
-    # Procfile wird automatisch erkannt (web: python main.py)
-    # run_command wird NICHT benötigt bei Procfile
+    # Expliziter run_command (zuverlässiger als Procfile)
+    run_command: "python main.py"
 
     routes:
       - path: /
@@ -23,8 +23,8 @@ services:
 
     health_check:
       http_path: /health
-      initial_delay_seconds: 30
+      initial_delay_seconds: 45
       period_seconds: 10
-      timeout_seconds: 5
+      timeout_seconds: 8
       success_threshold: 1
       failure_threshold: 3 
