@@ -298,7 +298,4 @@ Verfügbare Tools:
 🏥 Status: Running"""
 
 # ---------- ASGI App Export -------------
-# Für DigitalOcean mit FastAPI/Starlette Mounting
-def get_asgi_app():
-    """Gibt die ASGI App für externes Mounting zurück"""
-    return mcp.http_app(path="/mcp") 
+# Die ASGI App wird direkt in main.py erstellt mit mcp.http_app() 
