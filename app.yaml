@@ -9,8 +9,8 @@ services:
     instance_size_slug: basic-xxs
     instance_count: 1
 
-    # Einfacher Python Entry Point
-    run_command: "python main.py"
+    # Procfile wird automatisch erkannt (web: python main.py)
+    # run_command wird NICHT benötigt bei Procfile
 
     routes:
       - path: /
