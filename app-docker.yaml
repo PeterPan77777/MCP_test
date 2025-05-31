@@ -5,11 +5,10 @@ services:
   - name: mcp-server
     source_dir: /
     http_port: 8080
-    environment_slug: python
+    environment_slug: docker
     instance_size_slug: basic-xxs
     instance_count: 1
 
-    # Python-basiertes Deployment (Alternative zu Docker)
     run_command: "uvicorn app.main:app --host 0.0.0.0 --port 8080 --log-level info"
 
     routes:
