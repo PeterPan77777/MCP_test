@@ -1,0 +1,28 @@
+name: context7-mcp-server
+region: fra
+
+services:
+  - name: mcp-server
+    environment_slug: python
+    source_dir: /
+    instance_size_slug: basic-xxs
+    http_port: 8080
+
+    run_command: "python server.py"
+    routes:
+      - path: /        # GET /sse, /health, etc.
+      - path: /sse     # MCP SSE endpoint
+    
+    envs:
+      - key: PORT
+        value: "8080"
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+    health_check:
+      http_path: /sse   # SSE responds immediately
+      initial_delay_seconds: 10
+      period_seconds: 10
+      timeout_seconds: 5
+      success_threshold: 1
+      failure_threshold: 3 
