@@ -1,6 +1,99 @@
-# Context7 MCP Server (DigitalOcean Optimiert)
+# Context7 MCP Server für DigitalOcean
 
-Ein hochperformanter Model Context Protocol (MCP) Server mit FastAPI + FastMCP und Context7 Integration - optimiert für DigitalOcean App Platform und n8n.
+Ein MCP (Model Context Protocol) Server mit Context7 Integration, optimiert für DigitalOcean Deployment.
+
+## Features
+
+- 🚀 **FastMCP 2.5.2** - Neueste Version mit verbesserter Performance
+- 📚 **Context7 Integration** - Echtzeit-Zugriff auf aktuelle Library-Dokumentationen
+- 🌐 **Stateless HTTP** - Optimiert für Cloud-Skalierbarkeit
+- 🔧 **n8n Kompatibilität** - SSE Endpoint für n8n Integration
+- ☁️ **DigitalOcean Ready** - Vorkonfiguriert für App Platform
+
+## Endpoints
+
+- `/` - Service-Informationen und Status
+- `/health` - Health Check für Monitoring
+- `/sse` - Server-Sent Events für n8n
+- `/mcp` - Streamable HTTP für MCP Protokoll
+
+## Tools
+
+### 🔍 Library Management
+- `resolve_library` - Konvertiert Library-Namen zu Context7 IDs
+- `get_documentation` - Ruft Dokumentation für eine Library ab
+- `search_and_document` - Kombinierte Suche und Dokumentationsabruf
+
+### 🛠️ Utilities
+- `echo` - Echo-Test Tool
+- `hello` - Freundliche Begrüßung
+- `server_info` - Server-Informationen
+
+## Deployment
+
+### DigitalOcean App Platform
+
+1. Fork dieses Repository
+2. Erstelle eine neue App in DigitalOcean
+3. Wähle GitHub als Quelle
+4. DigitalOcean erkennt automatisch die Konfiguration
+
+### Lokale Entwicklung
+
+```bash
+# Clone repository
+git clone https://github.com/PeterPan77777/MCP_test.git
+cd MCP_test
+
+# Installiere Dependencies
+pip install -r requirements.txt
+
+# Starte Server
+python main.py
+```
+
+## Konfiguration
+
+### Environment Variables
+
+- `PORT` - Server Port (Standard: 8080)
+
+### App Specification
+
+```yaml
+name: context7-mcp-server
+region: fra
+services:
+  - name: mcp-server
+    github:
+      repo: PeterPan77777/MCP_test
+      branch: main
+    build_command: pip install -r requirements.txt
+    run_command: python main.py
+    envs:
+      - key: PYTHON_VERSION
+        value: "3.11"
+    http_port: 8080
+    health_check:
+      http_path: /health
+```
+
+## Technologie-Stack
+
+- **FastMCP 2.5.2** - MCP Server Framework
+- **Python 3.11** - Laufzeitumgebung
+- **uvicorn** - ASGI Server
+- **httpx** - Async HTTP Client für Context7 API
+- **Starlette** - ASGI Framework (via FastMCP)
+
+## Version History
+
+- **2.0.0** - Upgrade auf FastMCP 2.5.2 mit Stateless HTTP
+- **1.0.0** - Initial Release mit FastMCP 2.2.9
+
+## License
+
+MIT
 
 ## 🚀 Features
 

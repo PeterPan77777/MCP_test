@@ -1,12 +1,12 @@
 """
 Context7 MCP Server - optimiert für DigitalOcean & n8n
-Verwendet FastMCP direkt mit custom routes für maximale Kompatibilität
+Nutzt FastMCP 2.5.2 mit stateless HTTP für bessere Skalierbarkeit
 """
 import uuid
 import asyncio
 import httpx
 from typing import Optional, Dict, Any
-from fastmcp import FastMCP
+from fastmcp import FastMCP, Context
 from starlette.requests import Request
 from starlette.responses import StreamingResponse, JSONResponse, PlainTextResponse
 
@@ -55,9 +55,11 @@ class Context7Client:
 context7 = Context7Client()
 
 # ---------- FastMCP Server -------------
+# Stateless HTTP für bessere Skalierbarkeit auf DigitalOcean
 mcp = FastMCP(
     name="Context7-DO-Server",
-    instructions="Context7 MCP Server optimiert für DigitalOcean und n8n"
+    instructions="Context7 MCP Server optimiert für DigitalOcean und n8n",
+    stateless_http=True  # Kein Session-State, besser für Serverless
 )
 
 # ---------- Custom Routes -------------
@@ -66,10 +68,17 @@ async def root(request: Request) -> JSONResponse:
     """Root endpoint mit Service-Informationen"""
     return JSONResponse({
         "service": "Context7 MCP Server",
+        "version": "2.0.0",
+        "fastmcp": "2.5.2",
         "endpoints": {
             "health": "/health",
             "sse": "/sse (für n8n)",
-            "mcp": "Standard MCP protocol"
+            "mcp": "/mcp (Streamable HTTP)"
+        },
+        "features": {
+            "stateless": True,
+            "context7": True,
+            "tools": ["echo", "hello", "resolve_library", "get_documentation", "search_and_document", "server_info"]
         },
         "status": "running"
     })
@@ -79,7 +88,7 @@ async def health_check(request: Request) -> PlainTextResponse:
     """Health Check für DigitalOcean"""
     return PlainTextResponse("OK", status_code=200)
 
-# SSE Handler für n8n
+# SSE Handler für n8n Kompatibilität
 async def sse_generator():
     """
     N8n-kompatibler SSE Handshake:
@@ -121,7 +130,7 @@ def echo(text: str) -> str:
 @mcp.tool()
 def hello(name: str = "World") -> str:
     """Freundliche Begrüßung."""
-    return f"👋 Hallo, {name}! Context7 MCP Server läuft!"
+    return f"👋 Hallo, {name}! Context7 MCP Server läuft auf FastMCP 2.5.2!"
 
 @mcp.tool()
 async def resolve_library(library_name: str) -> str:
@@ -258,6 +267,10 @@ def server_info() -> str:
     return """🚀 Context7 MCP Server (DigitalOcean)
 ====================================
 
+Server Version: 2.0.0
+FastMCP Version: 2.5.2
+Mode: Stateless HTTP (optimiert für Cloud)
+
 Verfügbare Tools:
 • echo - Echo-Test
 • hello - Begrüßung
@@ -272,8 +285,20 @@ Verfügbare Tools:
 - Themen-spezifische Dokumentation
 
 🌐 Endpoints:
+- / - Service Info
 - /health - Health Check
 - /sse - SSE für n8n
-- Standard MCP Protocol
+- /mcp - Streamable HTTP (stateless)
 
-�� Status: Running""" 
+⚡ Features:
+- Stateless HTTP für bessere Skalierbarkeit
+- Keine Session-Verwaltung erforderlich
+- Optimiert für DigitalOcean Deployment
+
+🏥 Status: Running"""
+
+# ---------- ASGI App Export -------------
+# Für DigitalOcean mit FastAPI/Starlette Mounting
+def get_asgi_app():
+    """Gibt die ASGI App für externes Mounting zurück"""
+    return mcp.http_app(path="/mcp") 

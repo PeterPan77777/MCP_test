@@ -1,6 +1,6 @@
 # Core dependencies für DigitalOcean
 uvicorn==0.29.0
-fastmcp==2.2.9
+fastmcp==2.5.2
 
 # HTTP Client für Context7 API
 httpx>=0.25.0
