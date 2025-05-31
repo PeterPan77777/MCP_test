@@ -1,4 +1,4 @@
-fastmcp>=2.2.7
-uvicorn[standard]==0.29.*
-httpx>=0.25.0
-aiohttp>=3.8.0 
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+fastmcp==2.2.9
+httpx>=0.25.0 

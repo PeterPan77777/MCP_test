@@ -1,14 +1,15 @@
+"""
+Context7 MCP Server mit FastAPI + FastMCP - optimiert für DigitalOcean & n8n
+"""
+import uuid
 import asyncio
 import httpx
-from typing import List, Dict, Any, Optional
+from typing import Optional, Dict, Any
+from fastapi import FastAPI, Request
+from fastapi.responses import StreamingResponse, JSONResponse
 from fastmcp import FastMCP
 
-# MCP Server mit Context7 Integration
-mcp = FastMCP(
-    name="Context7-MCP-Server",
-    instructions="Ein FastMCP Server mit Context7 Integration für aktuelle Dokumentationsabfrage."
-)
-
+# ---------- Context7 Client -------------
 class Context7Client:
     """Client für Context7 API Zugriffe"""
     
@@ -52,10 +53,21 @@ class Context7Client:
 # Context7 Client Instanz
 context7 = Context7Client()
 
+# ---------- FastMCP Server -------------
+mcp = FastMCP(
+    name="Context7-DO-Server",
+    instructions="Context7 MCP Server optimiert für DigitalOcean und n8n"
+)
+
+@mcp.tool()
+def echo(text: str) -> str:
+    """Einfaches Echo-Tool zum Testen."""
+    return f"Echo: {text}"
+
 @mcp.tool()
 def hello(name: str = "World") -> str:
-    """Gibt eine freundliche Begrüßung zurück."""
-    return f"👋 Hallo, {name}! Willkommen zum Context7 MCP Server!"
+    """Freundliche Begrüßung."""
+    return f"👋 Hallo, {name}! Context7 MCP Server läuft!"
 
 @mcp.tool()
 async def resolve_library(library_name: str) -> str:
@@ -74,7 +86,7 @@ async def resolve_library(library_name: str) -> str:
         return f"❌ {result['error']}"
     
     if "libraries" in result and result["libraries"]:
-        library = result["libraries"][0]  # Nehme die erste/beste Übereinstimmung
+        library = result["libraries"][0]
         library_id = library.get("id", "Unbekannt")
         description = library.get("description", "Keine Beschreibung verfügbar")
         trust_score = library.get("trustScore", "Unbekannt")
@@ -109,7 +121,6 @@ async def get_documentation(library_id: str, topic: Optional[str] = None, max_to
     if "documentation" in result:
         docs = result["documentation"]
         
-        # Strukturiere die Antwort
         response = f"""📚 Dokumentation für {library_id}
 {'='*50}
 
@@ -118,7 +129,7 @@ async def get_documentation(library_id: str, topic: Optional[str] = None, max_to
         if topic:
             response += f"🎯 Thema: {topic}\n\n"
         
-        response += docs[:max_tokens]  # Begrenze die Ausgabe
+        response += docs[:max_tokens]
         
         if len(docs) > max_tokens:
             response += f"\n\n📝 Hinweis: Dokumentation wurde auf {max_tokens} Zeichen begrenzt."
@@ -190,10 +201,11 @@ async def search_and_document(library_name: str, topic: Optional[str] = None, ma
 @mcp.tool()
 def server_info() -> str:
     """Gibt Informationen über den MCP Server zurück."""
-    return """🚀 Context7 MCP Server
-================================
+    return """🚀 Context7 MCP Server (DigitalOcean)
+====================================
 
 Verfügbare Tools:
+• echo - Echo-Test
 • hello - Begrüßung
 • resolve_library - Library ID auflösen  
 • get_documentation - Dokumentation abrufen
@@ -205,20 +217,65 @@ Verfügbare Tools:
 - Library-Suche und ID-Auflösung
 - Themen-spezifische Dokumentation
 
-🌐 Deployment: DigitalOcean App Platform ready
-📡 Transport: Server-Sent Events (SSE)"""
+🌐 Transports:
+- SSE: /sse (für n8n)
+- streamable-http: /mcp (modern)
 
-# Health Check Endpoint
-@mcp.tool()
-def health_check() -> str:
+🏥 Health Check: /health"""
+
+# ---------- FastAPI App -------------
+app = FastAPI(title="Context7 MCP Server", version="1.0.0")
+
+# Modernes streamable-HTTP unter /mcp
+app.mount("/mcp", mcp.as_fastapi())
+
+@app.get("/health")
+async def health():
     """Health Check für DigitalOcean"""
-    return "✅ Server läuft korrekt"
+    return JSONResponse({"status": "ok", "service": "context7-mcp-server"})
 
-# Entry-Point für DigitalOcean
-if __name__ == "__main__":
-    # SSE Transport für n8n/MCP-Inspector auf /sse
-    print("🚀 Starte Context7 MCP Server...")
-    print("📡 SSE Transport: http://0.0.0.0:8080/sse")
-    print("🔍 MCP Inspector: npx @modelcontextprotocol/inspector http://localhost:8080/sse")
+# --------- SSE für n8n ----------
+async def sse_gen():
+    """
+    N8n-kompatibler SSE Handshake:
+        event: endpoint
+        data: /messages?sessionId=<uuid>
+    Danach Keep-alive Pings alle 15s
+    """
+    sid = uuid.uuid4().hex
     
-    mcp.run(transport="sse", host="0.0.0.0", port=8080, path="/sse") 
+    # 1. Handshake-Frame (sofort!)
+    yield f"event: endpoint\ndata: /messages?sessionId={sid}\n\n"
+    
+    # 2. Optional: done-Frame (wie Context7)
+    yield f"event: done\ndata: {{\"type\":\"done\",\"client_id\":\"{sid}\"}}\n\n"
+    
+    # 3. Keep-alive-Pings (alle 15s)
+    while True:
+        await asyncio.sleep(15)
+        yield ": ping\n\n"
+
+@app.get("/sse")
+async def sse_endpoint(request: Request):
+    """SSE Endpoint für n8n MCP Client"""
+    headers = {
+        "Cache-Control": "no-cache, no-transform",  # Verhindert Proxy-Buffering
+        "Content-Type": "text/event-stream",
+        "Connection": "keep-alive",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+    }
+    return StreamingResponse(sse_gen(), headers=headers)
+
+# Root endpoint
+@app.get("/")
+async def root():
+    return JSONResponse({
+        "service": "Context7 MCP Server",
+        "endpoints": {
+            "health": "/health",
+            "sse": "/sse (für n8n)",
+            "mcp": "/mcp (streamable-http)",
+        },
+        "status": "running"
+    }) 

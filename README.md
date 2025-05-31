@@ -1,41 +1,59 @@
-# Context7 MCP Server
+# Context7 MCP Server (DigitalOcean Optimiert)
 
-Ein Model Context Protocol (MCP) Server basierend auf FastMCP mit Context7 Integration für aktuelle Dokumentationsabfrage.
+Ein hochperformanter Model Context Protocol (MCP) Server mit FastAPI + FastMCP und Context7 Integration - optimiert für DigitalOcean App Platform und n8n.
 
 ## 🚀 Features
 
-- **FastMCP 2.x** - Moderne MCP Server Implementation
-- **Context7 Integration** - Aktuelle Dokumentationen abrufen
-- **Server-Sent Events (SSE)** - Kompatibel mit n8n und MCP Inspector
-- **DigitalOcean Ready** - Vorbereitet für App Platform Deployment
+- **FastAPI + FastMCP 2.2** - Moderne, performante MCP Server Implementation
+- **Dual Transport** - SSE für n8n + streamable-http für moderne Clients
+- **Context7 Integration** - Aktuelle Dokumentationen für alle Libraries abrufen
+- **Docker-basiert** - Konsistente Deployments auf DigitalOcean
+- **Sofortiger SSE-Handshake** - Behebt n8n Reconnect-Probleme
 - **Deutsche Benutzeroberfläche** - Alle Antworten auf Deutsch
+
+## 📁 Projekt Struktur
+
+```
+context7-mcp-server/
+├── app/
+│   └── main.py          # FastAPI + FastMCP + SSE Handshake
+├── requirements.txt     # Python Dependencies
+├── Dockerfile           # Container Build
+├── app.yaml            # DigitalOcean App Platform Config
+├── README.md           # Diese Dokumentation
+└── deploy.md          # Detaillierte Deploy-Anleitung
+```
 
 ## 📚 Verfügbare Tools
 
-1. **hello** - Freundliche Begrüßung
-2. **resolve_library** - Library Namen zu Context7 ID auflösen
-3. **get_documentation** - Dokumentation für Library ID abrufen
-4. **search_and_document** - Kombinierte Suche und Dokumentation
-5. **server_info** - Server-Informationen anzeigen
-6. **health_check** - Health Check für Monitoring
+1. **echo** - Echo-Test für Verbindungscheck
+2. **hello** - Freundliche Begrüßung
+3. **resolve_library** - Library Namen zu Context7 ID auflösen
+4. **get_documentation** - Dokumentation für Library ID abrufen
+5. **search_and_document** - Kombinierte Suche und Dokumentation (⭐ BEST)
+6. **server_info** - Server-Informationen anzeigen
+
+## 🌐 Endpoints
+
+- **`/`** - Server-Info und Status
+- **`/health`** - Health Check für DigitalOcean
+- **`/sse`** - Server-Sent Events (für n8n)
+- **`/mcp`** - Streamable-HTTP (moderne MCP Clients)
 
 ## 🛠️ Lokale Entwicklung
-
-### Voraussetzungen
-
-- Python 3.8+
-- pip
 
 ### Installation
 
 ```bash
-# Virtual Environment erstellen
+# Repository klonen
+git clone https://github.com/PeterPan77777/MCP_test.git
+cd MCP_test
+
+# Virtual Environment
 python -m venv venv
-
-# Aktivieren (Windows)
+# Windows:
 venv\Scripts\activate
-
-# Aktivieren (Linux/Mac)
+# Linux/Mac:
 source venv/bin/activate
 
 # Dependencies installieren
@@ -45,137 +63,212 @@ pip install -r requirements.txt
 ### Server starten
 
 ```bash
-python server.py
+# Direkt mit uvicorn
+uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+
+# Oder mit Docker
+docker build -t context7-mcp .
+docker run -p 8080:8080 context7-mcp
 ```
 
-Der Server läuft dann auf `http://localhost:8080/sse`
+### Testing
 
-### Testing mit MCP Inspector
-
+#### 1. Health Check
 ```bash
-# MCP Inspector starten
-npx @modelcontextprotocol/inspector http://127.0.0.1:8080/sse
+curl http://localhost:8080/health
+# Erwartung: {"status": "ok", "service": "context7-mcp-server"}
 ```
 
-Öffne den Browser und teste die Tools in der Inspector UI.
+#### 2. SSE Handshake (n8n kompatibel)
+```bash
+curl -N http://localhost:8080/sse
+# Erwartung: 
+# event: endpoint
+# data: /messages?sessionId=...
+```
+
+#### 3. MCP Inspector
+
+**Streamable-HTTP (empfohlen):**
+```bash
+npx @modelcontextprotocol/inspector
+# URL: http://localhost:8080/mcp
+# Transport: streamable-http
+```
+
+**SSE (n8n Modus):**
+```bash
+npx @modelcontextprotocol/inspector http://localhost:8080/sse
+```
 
 ## 🌐 DigitalOcean Deployment
 
 ### 1. Repository vorbereiten
 
 ```bash
-git init
 git add .
-git commit -m "Initial Context7 MCP Server"
-git remote add origin <dein-github-repo>
-git push -u origin main
+git commit -m "Context7 MCP Server - Docker optimiert"
+git push origin main
 ```
 
 ### 2. DigitalOcean App erstellen
 
-#### Option A: GitHub Integration (Empfohlen)
-
-1. DigitalOcean Dashboard öffnen
-2. "Apps" → "Create App"
-3. GitHub Repository auswählen
-4. `app.yaml` wird automatisch erkannt
-5. Deploy!
-
-#### Option B: doctl CLI
-
-```bash
-# DigitalOcean CLI installieren
-# https://docs.digitalocean.com/reference/doctl/how-to/install/
-
-# App erstellen
-doctl apps create --spec app.yaml
-```
+1. **DigitalOcean Dashboard:** https://cloud.digitalocean.com/
+2. **Apps → Create App**
+3. **GitHub Repository:** `PeterPan77777/MCP_test`
+4. **Build Environment:** Docker (wird automatisch erkannt)
+5. **app.yaml** wird automatisch verwendet
+6. **Deploy!**
 
 ### 3. Deployment verifizieren
 
-Nach dem Deployment (URL: https://deine-app.ondigitalocean.app):
+Nach dem Deployment (URL: `https://deine-app.ondigitalocean.app`):
 
 ```bash
 # Health Check
-curl https://deine-app.ondigitalocean.app/sse
+curl https://deine-app.ondigitalocean.app/health
+
+# SSE Handshake (muss sofort antworten!)
+curl -N https://deine-app.ondigitalocean.app/sse
 
 # MCP Inspector
-npx @modelcontextprotocol/inspector https://deine-app.ondigitalocean.app/sse
-```
-
-## 🔧 Context7 Verwendung
-
-### Beispiel: React Dokumentation
-
-```bash
-# In MCP Inspector oder n8n:
-search_and_document("react", "hooks")
-```
-
-### Beispiel: FastAPI Dokumentation
-
-```bash
-# Schritt 1: Library ID finden
-resolve_library("fastapi")
-
-# Schritt 2: Dokumentation abrufen  
-get_documentation("/tiangolo/fastapi", "authentication")
+npx @modelcontextprotocol/inspector https://deine-app.ondigitalocean.app/mcp
 ```
 
 ## 📡 n8n Integration
 
-1. n8n Workflow erstellen
-2. MCP Client Node hinzufügen
-3. Server URL: `https://deine-app.ondigitalocean.app/sse`
-4. Tools verwenden:
-   - `search_and_document` für schnelle Dokumentationssuche
-   - `resolve_library` + `get_documentation` für detaillierte Abfragen
+### Setup
+
+1. **n8n AI Agent** erstellen
+2. **MCP Server hinzufügen:**
+   - **URL:** `https://deine-app.ondigitalocean.app/sse`
+   - **Transport:** SSE
+3. **Agent starten** - sollte sofort verbinden (kein Reconnect-Loop!)
+
+### Verwendung
+
+```javascript
+// Schnelle Dokumentationssuche
+search_and_document("react", "hooks")
+
+// Spezifische Library
+resolve_library("fastapi")
+get_documentation("/tiangolo/fastapi", "authentication")
+
+// Server-Test
+echo("Hello World")
+```
+
+## 🎯 Context7 Beispiele
+
+### React Hooks Dokumentation
+```bash
+search_and_document("react", "hooks")
+```
+
+### FastAPI Authentication
+```bash
+resolve_library("fastapi")
+# Dann mit der erhaltenen Library ID:
+get_documentation("/tiangolo/fastapi", "authentication")
+```
+
+### Next.js Routing
+```bash
+search_and_document("next.js", "routing")
+```
 
 ## 🐛 Troubleshooting
 
-### 404 Fehler
-- Überprüfe `routes` in `app.yaml`
-- Stelle sicher, dass `/sse` Route existiert
+### Problem: n8n Reconnect-Loop
 
-### MCP Inspector Verbindungsprobleme
-- Verwende nur die Basis-URL ohne zusätzliche Parameter
-- Format: `http://localhost:8080/sse` (nicht `/sse?...`)
+**Symptom:** n8n verbindet sich immer wieder neu
 
-### Context7 API Fehler
-- Überprüfe Internetverbindung
-- Context7 Service Status prüfen
-- Library Namen korrekt schreiben
+**Lösung:** 
+- Prüfe `/sse` Endpoint: `curl -N https://app.url/sse`
+- Erster Frame muss sofort kommen: `event: endpoint`
+- Check DigitalOcean Logs für Buffering-Probleme
 
-### DigitalOcean Deployment Probleme
-- Logs anschauen: App Dashboard → Runtime Logs
-- Health Check Status prüfen
-- Environment Variables überprüfen
+### Problem: 404 auf Endpoints
 
-## 📁 Projekt Struktur
+**Symptom:** Alle Endpoints geben 404
 
+**Lösung:**
+1. `app.yaml` prüfen - `routes: - path: /` vorhanden?
+2. Docker Build erfolgreich? Check DigitalOcean Build Logs
+3. Health Check läuft? `/health` endpoint testen
+
+### Problem: MCP Inspector "Cannot connect"
+
+**Symptom:** Inspector zeigt Verbindungsfehler
+
+**Lösungen:**
+1. **URL Format:** `https://app.url/mcp` (für streamable-http)
+2. **Transport:** Korrekt gewählt (streamable-http vs SSE)
+3. **CORS:** Server sendet bereits korrekte Headers
+4. **Browser Cache:** Hard Refresh (Ctrl+F5)
+
+### Problem: Context7 API Fehler
+
+**Symptom:** Tools returnen API-Fehler
+
+**Debugging:**
+1. **Netzwerk:** DigitalOcean erlaubt HTTPS outbound
+2. **Context7 Status:** Service erreichbar?
+3. **Library Namen:** Korrekte Schreibweise?
+
+## 🔧 Performance Optimierung
+
+### DigitalOcean Instance Size
+
+```yaml
+# app.yaml - für höhere Performance
+services:
+  - name: mcp-server
+    instance_size_slug: basic-xs  # statt basic-xxs
 ```
-MCP_server_TEST/
-├── server.py          # Hauptserver mit FastMCP + Context7
-├── requirements.txt   # Python Dependencies
-├── Procfile          # DigitalOcean Start Command
-├── app.yaml          # DigitalOcean App Konfiguration  
-└── README.md         # Diese Dokumentation
+
+### Context7 Timeouts
+
+```python
+# app/main.py - längere Timeouts
+context7.timeout = 60.0  # statt 30.0
+```
+
+## 📊 Monitoring
+
+### DigitalOcean Metrics
+
+Dashboard → Apps → Deine App → **"Insights"**:
+- Response Times
+- HTTP Request Count  
+- Memory/CPU Usage
+- Error Rates
+
+### Custom Logging
+
+```bash
+# DigitalOcean Logs anschauen
+doctl apps logs <app-id> --type=build    # Build Logs
+doctl apps logs <app-id> --type=deploy   # Deploy Logs  
+doctl apps logs <app-id> --type=run      # Runtime Logs
 ```
 
 ## 🚀 Nächste Schritte
 
-1. **Weitere Tools hinzufügen**: Dekoriere Funktionen mit `@mcp.tool()`
-2. **Testing**: Nutze FastMCP's in-memory Client für pytest
-3. **Authentifizierung**: FastMCP 2.2+ OAuth Support für Bearer Tokens
-4. **Monitoring**: DigitalOcean App Metrics für Performance-Überwachung
+1. **Weitere Tools:** Dekoriere Funktionen mit `@mcp.tool()`
+2. **Authentication:** FastMCP 2.2+ OAuth Support
+3. **Caching:** Redis für Context7 Responses
+4. **Monitoring:** Sentry/DataDog Integration
 
 ## 📖 Referenzen
 
 - [FastMCP Dokumentation](https://github.com/jlowin/fastmcp)
-- [Model Context Protocol](https://modelcontextprotocol.io/)
+- [FastAPI Dokumentation](https://fastapi.tiangolo.com/)
 - [Context7 API](https://context7.dev/)
-- [DigitalOcean App Platform](https://docs.digitalocean.com/products/app-platform/)
+- [DigitalOcean Apps](https://docs.digitalocean.com/products/app-platform/)
+- [MCP Protokoll](https://modelcontextprotocol.io/)
 
 ---
 
-🎉 **Happy Coding!** Dein Context7 MCP Server ist bereit für die Welt! 
+🎉 **Ready to Deploy!** Dein optimierter Context7 MCP Server läuft stabil auf DigitalOcean! 
