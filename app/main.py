@@ -1,13 +1,14 @@
 """
-Context7 MCP Server mit FastAPI + FastMCP - optimiert für DigitalOcean & n8n
+Context7 MCP Server - optimiert für DigitalOcean & n8n
+Verwendet FastMCP direkt mit custom routes für maximale Kompatibilität
 """
 import uuid
 import asyncio
 import httpx
 from typing import Optional, Dict, Any
-from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse, JSONResponse
 from fastmcp import FastMCP
+from starlette.requests import Request
+from starlette.responses import StreamingResponse, JSONResponse, PlainTextResponse
 
 # ---------- Context7 Client -------------
 class Context7Client:
@@ -59,6 +60,59 @@ mcp = FastMCP(
     instructions="Context7 MCP Server optimiert für DigitalOcean und n8n"
 )
 
+# ---------- Custom Routes -------------
+@mcp.custom_route("/", methods=["GET"])
+async def root(request: Request) -> JSONResponse:
+    """Root endpoint mit Service-Informationen"""
+    return JSONResponse({
+        "service": "Context7 MCP Server",
+        "endpoints": {
+            "health": "/health",
+            "sse": "/sse (für n8n)",
+            "mcp": "Standard MCP protocol"
+        },
+        "status": "running"
+    })
+
+@mcp.custom_route("/health", methods=["GET"])
+async def health_check(request: Request) -> PlainTextResponse:
+    """Health Check für DigitalOcean"""
+    return PlainTextResponse("OK", status_code=200)
+
+# SSE Handler für n8n
+async def sse_generator():
+    """
+    N8n-kompatibler SSE Handshake:
+        event: endpoint
+        data: /messages?sessionId=<uuid>
+    Danach Keep-alive Pings alle 15s
+    """
+    sid = uuid.uuid4().hex
+    
+    # 1. Handshake-Frame (sofort!)
+    yield f"event: endpoint\ndata: /messages?sessionId={sid}\n\n"
+    
+    # 2. Optional: done-Frame
+    yield f"event: done\ndata: {{\"type\":\"done\",\"client_id\":\"{sid}\"}}\n\n"
+    
+    # 3. Keep-alive-Pings
+    while True:
+        await asyncio.sleep(15)
+        yield ": ping\n\n"
+
+@mcp.custom_route("/sse", methods=["GET"])
+async def sse_endpoint(request: Request) -> StreamingResponse:
+    """SSE Endpoint für n8n MCP Client"""
+    headers = {
+        "Cache-Control": "no-cache, no-transform",
+        "Content-Type": "text/event-stream",
+        "Connection": "keep-alive",
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Headers": "Content-Type",
+    }
+    return StreamingResponse(sse_generator(), headers=headers)
+
+# ---------- MCP Tools -------------
 @mcp.tool()
 def echo(text: str) -> str:
     """Einfaches Echo-Tool zum Testen."""
@@ -217,75 +271,9 @@ Verfügbare Tools:
 - Library-Suche und ID-Auflösung
 - Themen-spezifische Dokumentation
 
-🌐 Transports:
-- SSE: /sse (für n8n)
-- streamable-http: /mcp (modern)
+🌐 Endpoints:
+- /health - Health Check
+- /sse - SSE für n8n
+- Standard MCP Protocol
 
-🏥 Health Check: /health"""
-
-# ---------- FastAPI App -------------
-app = FastAPI(title="Context7 MCP Server", version="1.0.0")
-
-# Erstelle die MCP ASGI App korrekt (FastMCP 2.2 API)
-mcp_app = mcp.http_app(path="/mcp")
-
-# Korrekte Lifespan-Behandlung für FastAPI
-app = FastAPI(
-    title="Context7 MCP Server", 
-    version="1.0.0",
-    lifespan=mcp_app.lifespan
-)
-
-# Mount der MCP App unter /mcp
-app.mount("/mcp", mcp_app)
-
-@app.get("/health")
-async def health():
-    """Health Check für DigitalOcean"""
-    return JSONResponse({"status": "ok", "service": "context7-mcp-server"})
-
-# --------- SSE für n8n ----------
-async def sse_gen():
-    """
-    N8n-kompatibler SSE Handshake:
-        event: endpoint
-        data: /messages?sessionId=<uuid>
-    Danach Keep-alive Pings alle 15s
-    """
-    sid = uuid.uuid4().hex
-    
-    # 1. Handshake-Frame (sofort!)
-    yield f"event: endpoint\ndata: /messages?sessionId={sid}\n\n"
-    
-    # 2. Optional: done-Frame (wie Context7)
-    yield f"event: done\ndata: {{\"type\":\"done\",\"client_id\":\"{sid}\"}}\n\n"
-    
-    # 3. Keep-alive-Pings (alle 15s)
-    while True:
-        await asyncio.sleep(15)
-        yield ": ping\n\n"
-
-@app.get("/sse")
-async def sse_endpoint(request: Request):
-    """SSE Endpoint für n8n MCP Client"""
-    headers = {
-        "Cache-Control": "no-cache, no-transform",  # Verhindert Proxy-Buffering
-        "Content-Type": "text/event-stream",
-        "Connection": "keep-alive",
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Headers": "Content-Type",
-    }
-    return StreamingResponse(sse_gen(), headers=headers)
-
-# Root endpoint
-@app.get("/")
-async def root():
-    return JSONResponse({
-        "service": "Context7 MCP Server",
-        "endpoints": {
-            "health": "/health",
-            "sse": "/sse (für n8n)",
-            "mcp": "/mcp (streamable-http)",
-        },
-        "status": "running"
-    }) 
+�� Status: Running""" 

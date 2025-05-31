@@ -1,4 +1,8 @@
-fastapi==0.111.0
-uvicorn[standard]==0.29.0
+# Core dependencies für DigitalOcean
+uvicorn==0.29.0
 fastmcp==2.2.9
-httpx>=0.25.0 
+
+# HTTP Client für Context7 API
+httpx>=0.25.0
+
+# Starlette ist bereits in FastMCP enthalten 
