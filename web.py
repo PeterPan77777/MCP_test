@@ -5,22 +5,17 @@ import os
 import uvicorn
 from server import mcp
 from starlette.applications import Starlette
-from starlette.routing import Mount
-from starlette.responses import JSONResponse
+from starlette.routing import Mount, Route
+from starlette.responses import JSONResponse, PlainTextResponse
 
 # Get the MCP app (Streamable HTTP default)
 mcp_app = mcp.http_app()
 
-# Create main app with CRITICAL lifespan parameter!
-app = Starlette(
-    lifespan=mcp_app.lifespan  # ⚠️ OHNE DIES: 404 auf alle /mcp Routen!
-)
+# Health check handler
+async def health_check(request):
+    return PlainTextResponse("OK")
 
-# Mount MCP app at root - provides /mcp endpoint
-app.mount("/", mcp_app)
-
-# Add custom routes for info
-@app.route("/meta")
+# Meta info handler
 async def meta(request):
     return JSONResponse({
         "service": "Simple MCP Server",
@@ -37,6 +32,16 @@ async def meta(request):
             "test_sse": "curl /mcp"
         }
     })
+
+# Create main app with CRITICAL lifespan parameter!
+app = Starlette(
+    routes=[
+        Mount("/", app=mcp_app),  # MCP app at root - provides /mcp endpoint
+        Route("/health", health_check, methods=["GET"]),  # Health check
+        Route("/meta", meta, methods=["GET"]),  # Meta info
+    ],
+    lifespan=mcp_app.lifespan  # ⚠️ OHNE DIES: 404 auf alle /mcp Routen!
+)
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
