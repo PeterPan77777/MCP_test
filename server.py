@@ -8,6 +8,7 @@ from engineering_mcp.registry import (
     discover_engineering_tools,
     get_tool_details as get_tool_details_from_registry
 )
+import json
 
 # MCP Server mit ausführlichen Instructions für LLMs
 mcp = FastMCP(
@@ -251,12 +252,21 @@ async def calculate_engineering(
     Raises:
         ValueError: Bei ungültigen Tools oder Parametern
     """
+    # Enhanced Logging für n8n Debugging
+    print(f"\n🔧 CALCULATE_ENGINEERING CALLED")
+    print(f"Tool: {tool_name}")
+    print(f"Parameters Type: {type(parameters)}")
+    print(f"Parameters: {json.dumps(parameters, indent=2) if isinstance(parameters, dict) else parameters}")
+    
     if ctx:
         await ctx.info(f"Führe Engineering-Berechnung aus: {tool_name}")
         await ctx.info(f"Parameter: {parameters}")
     
     try:
         result = await call_engineering_tool(tool_name, parameters)
+        
+        print(f"✅ Calculation successful for {tool_name}")
+        print(f"Result: {json.dumps(result, indent=2)}")
         
         if ctx:
             await ctx.info(f"Berechnung erfolgreich abgeschlossen")
@@ -270,6 +280,8 @@ async def calculate_engineering(
         
     except Exception as e:
         error_msg = f"Fehler bei Engineering-Berechnung '{tool_name}': {e}"
+        print(f"❌ ERROR: {error_msg}")
+        
         if ctx:
             await ctx.error(error_msg)
         
@@ -313,6 +325,11 @@ async def execute_engineering_tool(
             "parameters": {"radius": 10}
         }
     """
+    # Enhanced Logging für n8n Debugging
+    print(f"\n🔧 EXECUTE_ENGINEERING_TOOL CALLED")
+    print(f"Request Type: {type(request)}")
+    print(f"Request: {json.dumps(request, indent=2) if isinstance(request, dict) else request}")
+    
     if ctx:
         await ctx.info(f"Execute engineering tool mit request: {request}")
     
