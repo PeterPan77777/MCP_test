@@ -12,11 +12,11 @@ from starlette.responses import JSONResponse
 # Create the main app
 app = Starlette()
 
-# Get MCP apps with correct paths
-http_app = mcp.http_app(path="/mcp")
-sse_app = mcp.http_app(path="/sse", transport="sse")
+# Get MCP apps without path parameter (mounting will handle the path)
+http_app = mcp.http_app()
+sse_app = mcp.http_app(transport="sse")
 
-# Mount the apps
+# Mount the apps at specific paths
 app.mount("/mcp", http_app)
 app.mount("/sse", sse_app)
 
