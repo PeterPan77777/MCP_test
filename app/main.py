@@ -91,46 +91,48 @@ async def health_check(request: Request) -> PlainTextResponse:
     return PlainTextResponse("OK", status_code=200)
 
 # --------- SSE für MCP Inspector & n8n (DigitalOcean Anti-Buffering) ----------
-@mcp.custom_route("/sse", methods=["GET"])
+@mcp.custom_route("/sse", methods=["GET", "POST"])  # POST funktioniert besser auf DigitalOcean!
 async def sse_endpoint(request: Request) -> EventSourceResponse:
     """
     SSE Endpoint für MCP Inspector & n8n
-    Optimiert für DigitalOcean mit Anti-Buffering Headers
+    Optimiert für DigitalOcean mit 4KB Flush-Chunk gegen Nginx Buffering
+    Unterstützt GET und POST (POST empfohlen für DigitalOcean)
     """
     
     async def event_stream():
-        sid = uuid.uuid4().hex
+        # ❶ KRITISCH: 4KB Flush-Chunk um Nginx Buffer sofort zu füllen!
+        # Ohne diesen Chunk puffert DigitalOcean bis 4KB voll sind
+        yield {"comment": " " * 4096}
         
-        # 1️⃣ NUR Handshake-Frame (kein done-Frame!)
-        # done-Frame bricht Inspector mit AbortError ab
+        # ❷ MCP Handshake (jetzt kommt er sofort durch!)
+        sid = uuid.uuid4().hex
         yield {
             "event": "endpoint",
             "data": f"/messages?sessionId={sid}"
         }
         
-        # 2️⃣ Keep-alive alle 20s (DO-Proxy kappt nach ~55s)
+        # ❸ Keep-alive alle 20s (DO-Proxy kappt nach ~55s)
         while True:
-            await asyncio.sleep(20)  # Nicht 15s - 20s ist sicherer
-            # Kommentar-Frame ist SSE-spec-konform und löst keine AbortErrors aus
+            await asyncio.sleep(20)
             yield {"comment": "ping"}
     
-    # DigitalOcean Anti-Buffering Headers (nach Best Practices)
+    # DigitalOcean Anti-Buffering Headers
     return EventSourceResponse(
         event_stream(),
         headers={
             # Kritische Anti-Buffering Headers
-            "X-Accel-Buffering": "no",           # nginx/DO proxy buffering aus
-            "Cache-Control": "no-cache, no-transform",  # Keine Kompression durch Proxies
-            "Content-Encoding": "identity",      # Explizit keine gzip/br
+            "X-Accel-Buffering": "no",           # Nginx buffering ausschalten
+            "Cache-Control": "no-cache, no-transform, no-store",  # Maximaler Cache-Schutz
+            "Content-Encoding": "identity",      # Explizit keine Kompression
             
             # SSE Standard Headers
-            "Content-Type": "text/event-stream",
+            "Content-Type": "text/event-stream; charset=utf-8",
             "Connection": "keep-alive",
             
             # CORS für Inspector
             "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "Content-Type, Accept",
-            "Access-Control-Allow-Methods": "GET",
+            "Access-Control-Allow-Headers": "Content-Type, Accept, Cache-Control",
+            "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
         },
     )
 

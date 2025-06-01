@@ -20,12 +20,16 @@ if __name__ == "__main__":
         print(f"🌐 Port: {port}")
         print(f"📍 Endpoints:")
         print(f"   - Health: http://0.0.0.0:{port}/health")
-        print(f"   - SSE: http://0.0.0.0:{port}/sse")
+        print(f"   - SSE: http://0.0.0.0:{port}/sse (GET oder POST)")
         print(f"   - MCP: http://0.0.0.0:{port}/mcp")
         print(f"   - Info: http://0.0.0.0:{port}/")
         
         # Hole die ASGI App von FastMCP
+        # Option 1: Standard streamable-http (empfohlen)
         app = mcp.http_app()
+        
+        # Option 2: Falls SSE Probleme - Legacy SSE App verwenden
+        # app = mcp.http_app(transport="sse", path="/sse")
         
         # Starte direkt mit uvicorn
         uvicorn.run(

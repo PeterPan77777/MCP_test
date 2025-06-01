@@ -14,6 +14,7 @@ services:
 
     routes:
       - path: /
+      - path: /sse   # Explizit für SSE Endpoint
 
     envs:
       - key: PORT

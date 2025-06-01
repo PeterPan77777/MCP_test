@@ -14,84 +14,107 @@ Ein MCP (Model Context Protocol) Server mit Context7 Integration, optimiert für
 
 - `/` - Service-Informationen und Status
 - `/health` - Health Check für Monitoring
-- `/sse` - Server-Sent Events für n8n
+- `/sse` - Server-Sent Events für n8n (GET & POST)
 - `/mcp` - Streamable HTTP für MCP Protokoll
 
 ## Tools
 
 ### 🔍 Library Management
 - `resolve_library` - Konvertiert Library-Namen zu Context7 IDs
-- `get_documentation` - Ruft Dokumentation für eine Library ab
+- `get_documentation` - Ruft Dokumentation mit optionalem Topic-Filter ab
 - `search_and_document` - Kombinierte Suche und Dokumentationsabruf
 
-### 🛠️ Utilities
-- `echo` - Echo-Test Tool
-- `hello` - Freundliche Begrüßung
-- `server_info` - Server-Informationen
+### 🛠️ Utility Tools
+- `echo` - Test-Tool zum Echo von Text
+- `hello` - Freundliche Begrüßung mit Namen
+- `server_info` - Detaillierte Server-Informationen
 
-## Deployment
-
-### DigitalOcean App Platform
+## Deployment auf DigitalOcean
 
 1. Fork dieses Repository
-2. Erstelle eine neue App in DigitalOcean
-3. Wähle GitHub als Quelle
-4. DigitalOcean erkennt automatisch die Konfiguration
+2. Erstelle eine neue App auf DigitalOcean App Platform
+3. Verbinde dein GitHub Repository
+4. Deploy!
 
-### Lokale Entwicklung
+Die App nutzt:
+- **Python 3.11** Environment
+- **Procfile** für den Startbefehl
+- **app.yaml** für DigitalOcean Konfiguration
+
+## SSE Troubleshooting auf DigitalOcean
+
+### Problem: MCP Inspector bricht mit AbortError ab
+
+DigitalOcean's Nginx-Proxy puffert SSE Streams standardmäßig. Die Lösung:
+
+#### 1. Verwende POST statt GET (empfohlen):
+```bash
+# POST funktioniert besser auf DigitalOcean App Platform
+curl -X POST -N https://squid-app-bjpyk.ondigitalocean.app/sse
+```
+
+#### 2. Teste mit MCP Inspector:
+```bash
+# Standard GET (kann Probleme haben)
+npx @modelcontextprotocol/inspector \
+  --cli https://squid-app-bjpyk.ondigitalocean.app/sse
+
+# Alternative: Nutze streamable-http (empfohlen)
+npx @modelcontextprotocol/inspector \
+  --cli https://squid-app-bjpyk.ondigitalocean.app/mcp \
+  --transport streamable-http
+```
+
+#### 3. Technische Details:
+- **4KB Flush-Chunk**: Durchbricht Nginx Buffer sofort
+- **X-Accel-Buffering: no**: Deaktiviert Proxy-Buffering
+- **POST Support**: Umgeht einige DigitalOcean SSE-Probleme
+- **20s Keep-alive**: Verhindert 55s Timeout
+
+### Curl-Tests
 
 ```bash
-# Clone repository
-git clone https://github.com/PeterPan77777/MCP_test.git
-cd MCP_test
+# Test SSE mit GET
+curl -N -H "Accept: text/event-stream" \
+     https://squid-app-bjpyk.ondigitalocean.app/sse
 
-# Installiere Dependencies
+# Test SSE mit POST (empfohlen für DigitalOcean)
+curl -X POST -N -H "Accept: text/event-stream" \
+     -H "Cache-Control: no-cache" \
+     https://squid-app-bjpyk.ondigitalocean.app/sse
+
+# Test MCP streamable-http
+curl https://squid-app-bjpyk.ondigitalocean.app/mcp
+```
+
+## Lokale Entwicklung
+
+```bash
+# Repository klonen
+git clone https://github.com/yourusername/context7-mcp-server.git
+cd context7-mcp-server
+
+# Dependencies installieren
 pip install -r requirements.txt
 
-# Starte Server
+# Server starten
 python main.py
 ```
 
-## Konfiguration
-
-### Environment Variables
+## Umgebungsvariablen
 
 - `PORT` - Server Port (Standard: 8080)
-
-### App Specification
-
-```yaml
-name: context7-mcp-server
-region: fra
-services:
-  - name: mcp-server
-    github:
-      repo: PeterPan77777/MCP_test
-      branch: main
-    build_command: pip install -r requirements.txt
-    run_command: python main.py
-    envs:
-      - key: PYTHON_VERSION
-        value: "3.11"
-    http_port: 8080
-    health_check:
-      http_path: /health
-```
+- `PYTHONUNBUFFERED` - Python Output unbuffered (1)
+- `DISABLE_COMPRESSION` - Deaktiviert globale Kompression für SSE
 
 ## Technologie-Stack
 
 - **FastMCP 2.5.2** - MCP Server Framework
-- **Python 3.11** - Laufzeitumgebung
-- **uvicorn** - ASGI Server
+- **Uvicorn** - ASGI Server
 - **httpx** - Async HTTP Client für Context7 API
-- **Starlette** - ASGI Framework (via FastMCP)
+- **sse-starlette** - SSE Support mit Anti-Buffering
 
-## Version History
-
-- **2.0.0** - Upgrade auf FastMCP 2.5.2 mit Stateless HTTP
-- **1.0.0** - Initial Release mit FastMCP 2.2.9
-
-## License
+## Lizenz
 
 MIT
 
