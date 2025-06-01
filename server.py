@@ -89,6 +89,30 @@ def clock() -> str:
     "Aktuelle UTC-Zeit zurückgeben"
     return datetime.datetime.utcnow().isoformat() + "Z"
 
+@mcp.tool(
+    name="debug_echo",
+    description="Debug-Tool: Gibt empfangene Parameter unverändert zurück zur Schema-Analyse"
+)
+def debug_echo(**kwargs) -> Dict:
+    """
+    Debug-Tool um zu sehen, was n8n genau sendet.
+    Akzeptiert beliebige Parameter und gibt sie zurück.
+    """
+    print(f"\n🔍 DEBUG_ECHO CALLED")
+    print(f"Received kwargs: {kwargs}")
+    print(f"Kwargs type: {type(kwargs)}")
+    
+    # Detaillierte Analyse jedes Parameters
+    for key, value in kwargs.items():
+        print(f"  - {key}: {value} (type: {type(value)})")
+    
+    return {
+        "debug_info": "Echo successful",
+        "received_parameters": kwargs,
+        "parameter_count": len(kwargs),
+        "parameter_types": {k: str(type(v)) for k, v in kwargs.items()}
+    }
+
 # ===== Meta-Tools für mehrstufige Discovery =====
 
 @mcp.tool(
@@ -370,11 +394,47 @@ async def init_engineering_tools():
     """Lädt Engineering-Tools beim Server-Start"""
     tools_count = await discover_engineering_tools()
     print(f"✅ {tools_count} Engineering-Tools entdeckt")
-    print(f"✅ 5 Meta-Tools + 1 Utility-Tool (clock) bereit")
+    print(f"✅ 5 Meta-Tools + 2 Utility-Tools (clock, debug_echo) bereit")
     print(f"🎯 Mehrstufige Discovery aktiviert:")
     print(f"   1. get_available_categories")
     print(f"   2. list_engineering_tools")  
     print(f"   3. get_tool_details")
     print(f"   4. calculate_engineering (2 Parameter)")
     print(f"   5. execute_engineering_tool (1 Parameter)")
-    return tools_count 
+    
+    # Erstelle direkte Tool-Wrapper für n8n
+    await create_direct_tool_wrappers()
+    
+    return tools_count
+
+# Direkte Tool-Wrapper für n8n Kompatibilität
+async def create_direct_tool_wrappers():
+    """Erstellt direkte Tool-Wrapper für bessere n8n-Kompatibilität"""
+    print(f"\n🔧 Erstelle direkte Tool-Wrapper für n8n...")
+    
+    # Beispiel: Direkter Wrapper für solve_circle_area
+    @mcp.tool(
+        name="solve_circle_area_direct",
+        description="Berechnet Kreisfläche oder Radius direkt. Gib entweder 'radius' oder 'area' an.",
+        tags=["geometry", "direct", "n8n"]
+    )
+    async def solve_circle_area_direct(
+        radius: Optional[float] = None,
+        area: Optional[float] = None,
+        ctx: Context = None
+    ) -> Dict:
+        """Direkter Wrapper für solve_circle_area - n8n-kompatibel"""
+        print(f"\n📐 SOLVE_CIRCLE_AREA_DIRECT CALLED")
+        print(f"Radius: {radius}, Area: {area}")
+        
+        # Erstelle parameters Dict
+        parameters = {}
+        if radius is not None:
+            parameters["radius"] = radius
+        if area is not None:
+            parameters["area"] = area
+            
+        # Rufe das eigentliche Tool auf
+        return await call_engineering_tool("solve_circle_area", parameters)
+    
+    print(f"✅ Direkte Wrapper erstellt") 
