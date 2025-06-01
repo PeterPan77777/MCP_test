@@ -1,27 +1,48 @@
-from fastmcp import FastMCP, Context
-import datetime
+"""
+MCP Engineering Server - Entry Point
+
+Haupteinstiegspunkt für den modularen MCP-Server für Ingenieurberechnungen.
+Initialisiert FastMCP, lädt Konfiguration und registriert alle Tools automatisch.
+"""
+
+import os
+import asyncio
 from typing import Optional, Dict, List
-from engineering_mcp.registry import (
-    get_tool_info_for_llm, 
-    get_symbolic_tools_summary,
-    call_engineering_tool,
-    discover_engineering_tools
-)
 
-mcp = FastMCP(name="demo-mcp", instructions="Einfacher Test-Server mit Engineering-Tools")
+from fastmcp import FastMCP, Context
+from engineering_mcp.config import get_server_config
+from engineering_mcp.registry import discover_tools, get_tool_info_for_llm, get_symbolic_tools_summary
 
-@mcp.tool()
-def echo(msg: str) -> str:
-    "Gibt die Nachricht unverändert zurück"
-    return msg
 
-@mcp.tool()
-def clock() -> str:
-    "Aktuelle UTC-Zeit zurückgeben"
-    return datetime.datetime.utcnow().isoformat() + "Z"
+def create_mcp_server() -> Optional[FastMCP]:
+    """
+    Erstellt und konfiguriert den FastMCP-Server.
+    
+    Returns:
+        FastMCP: Konfigurierte Server-Instanz oder None bei Fehlern
+    """
+    # Server-Konfiguration laden
+    config = get_server_config()
+    server_name = config.server_name
+    debug = config.debug
+    
+    # FastMCP-Server initialisieren
+    mcp = FastMCP(
+        name=server_name,
+        version="0.1.0",
+        docs_url="/mcp/docs" if debug else None,
+        openapi_url="/mcp/openapi.json" if debug else None
+    )
+    
+    print(f"✅ {server_name} v0.1.0 initialisiert")
+    return mcp
 
-# ===== Meta-Tools für zweistufige Architektur =====
 
+# Globale Server-Instanz
+mcp = create_mcp_server()
+
+
+# Discovery-Tools als MCP-Tools registrieren
 @mcp.tool(
     name="list_engineering_tools",
     description="Listet alle verfügbaren Engineering-Tools mit lösbaren Variablen auf. Verfügbare Kategorien: pressure, geometry, materials, thermodynamics, statics",
@@ -166,6 +187,8 @@ async def calculate_engineering(
         await ctx.info(f"Führe Engineering-Berechnung aus: {tool_name}")
         await ctx.info(f"Parameter: {parameters}")
     
+    from engineering_mcp.registry import call_engineering_tool
+    
     try:
         result = await call_engineering_tool(tool_name, parameters)
         
@@ -232,9 +255,16 @@ async def get_available_categories(
         categories_info[category]["tool_count"] += 1
     
     # Kategorie-Beschreibungen hinzufügen
-    from engineering_mcp.registry import get_category_description
+    category_descriptions = {
+        "pressure": "Druckbehälter, Kesselformeln, Druckberechnungen",
+        "geometry": "Flächenberechnungen, Volumen, geometrische Formeln", 
+        "materials": "Werkstoffkennwerte, Festigkeitsberechnungen",
+        "thermodynamics": "Wärmeübertragung, Zustandsänderungen",
+        "statics": "Statik, Kräfte, Momente, Balkenberechnung"
+    }
+    
     for category, info in categories_info.items():
-        info["description"] = get_category_description(category)
+        info["description"] = category_descriptions.get(category, f"{category.title()}-bezogene Engineering-Tools")
     
     if ctx:
         await ctx.info(f"Gefunden: {len(categories_info)} Kategorien")
@@ -246,9 +276,68 @@ async def get_available_categories(
         "usage_hint": "Verwende diese Kategorien mit list_engineering_tools(category='...')"
     }
 
-# Initialisierung beim Server-Start
-async def init_engineering_tools():
-    """Lädt Engineering-Tools beim Server-Start"""
-    tools_count = await discover_engineering_tools()
-    print(f"✅ {tools_count} Engineering-Tools entdeckt (separat gespeichert)")
-    return tools_count 
+
+async def setup_server(mcp_instance: FastMCP) -> int:
+    """
+    Initialisiert Server und registriert nur Meta-Tools bei MCP.
+    Engineering-Tools werden separat entdeckt aber NICHT bei MCP registriert.
+    
+    Args:
+        mcp_instance: FastMCP Server-Instanz
+        
+    Returns:
+        int: Anzahl der registrierten Meta-Tools (5)
+    """
+    from engineering_mcp.registry import discover_engineering_tools
+    
+    # Engineering-Tools separat entdecken (NICHT bei MCP registrieren!)
+    engineering_tools_count = await discover_engineering_tools()
+    print(f"✅ {engineering_tools_count} Engineering-Tools entdeckt (separat gespeichert)")
+    
+    # Nur Meta-Tools sind bei MCP registriert (5 Tools)
+    meta_tools_count = 5  # list_engineering_tools, get_symbolic_tools_overview, suggest_tool_for_variables, calculate_engineering, get_available_categories
+    print(f"✅ {meta_tools_count} Meta-Tools bei MCP registriert")
+    
+    print(f"🎯 Zweistufige Architektur aktiviert:")
+    print(f"   └─ LLM sieht nur {meta_tools_count} Meta-Tools")
+    print(f"   └─ {engineering_tools_count} Engineering-Tools über Meta-Tools abrufbar")
+    
+    return meta_tools_count
+
+
+async def main():
+    """Hauptfunktion für direkten Server-Start"""
+    # Server setup
+    tools_count = await setup_server(mcp)
+    
+    if tools_count > 0:
+        print(f"🚀 {mcp.name} bereit mit {tools_count} Tools")
+    else:
+        print("⚠️ Keine Tools geladen - Server läuft im Basis-Modus")
+    
+    # Für direkten uvicorn-Start
+    if os.getenv("DIRECT_START"):
+        try:
+            import uvicorn
+            
+            config = get_server_config()
+            port = config.port
+            debug = config.debug
+            
+            print(f"🌐 Starte HTTP-Server auf Port {port}")
+            uvicorn.run(
+                "app:mcp.app",
+                host="0.0.0.0",
+                port=port,
+                log_level="info",
+                reload=debug
+            )
+        except ImportError:
+            print("❌ uvicorn nicht verfügbar - verwende 'fastmcp dev app.py'")
+        except Exception as e:
+            print(f"❌ Server-Start fehlgeschlagen: {e}")
+
+
+if __name__ == "__main__":
+    # Für FastMCP CLI
+    asyncio.run(main()) 
