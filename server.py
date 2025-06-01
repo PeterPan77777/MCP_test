@@ -2,19 +2,12 @@
 Simple MCP Server - Minimal example with SSE and streamable-http support
 """
 from fastmcp import FastMCP
-from starlette.responses import JSONResponse
 
 # Create MCP server instance
 mcp = FastMCP(
     name="simple-mcp-server",
     instructions="A minimal MCP server example"
 )
-
-# Health check endpoint for Railway
-@mcp.custom_route("/health", methods=["GET"])
-async def health_check(request):
-    """Health check endpoint for Railway."""
-    return JSONResponse({"status": "healthy", "service": "simple-mcp-server"})
 
 # Tool 1: Simple echo tool
 @mcp.tool()
