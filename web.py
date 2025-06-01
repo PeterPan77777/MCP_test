@@ -25,19 +25,7 @@ app.router.redirect_slashes = False                     # root-Router
 # 5️⃣  *Ein* Mount je Transport – mit korrektem Präfix
 app.mount("/mcp", http_app)                             # ergibt   /mcp
 app.mount("/sse", sse_app)
-app.mount("/mcp/", http_app)                             # ergibt   /mcp
-app.mount("/sse/", sse_app)                              # ergibt   /sse
 
-# 🔍 DEBUG: Routen unmittelbar nach dem Mount ausgeben
-print("=== DEBUG: Registrierte Routen ===")
-for r in app.routes:
-    print(f"▶ PATH: {getattr(r, 'path', '?')},  NAME: {r.name}")
-
-# 🔍 DEBUG: Redirect-Einstellungen loggen
-print("=== DEBUG: Redirect-Einstellungen ===")
-print("Root redirect_slashes:", app.router.redirect_slashes)
-print("HTTP redirect_slashes:", http_app.router.redirect_slashes)
-print("SSE  redirect_slashes:", sse_app.router.redirect_slashes)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0",
