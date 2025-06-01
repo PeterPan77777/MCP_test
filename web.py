@@ -1,24 +1,24 @@
-# web.py  – funktioniert mit Streamable HTTP unter /mcp und SSE unter /sse
+# web.py  — kleinste funktionierende Version
 import os, uvicorn
 from starlette.applications import Starlette
-from starlette.responses import PlainTextResponse
 from starlette.routing import Route
-from server import mcp                     # deine Tools
+from starlette.responses import PlainTextResponse
+from server import mcp
 
-# 1)  Sub-Apps OHNE internes Präfix  →  path=""  (nicht "/")
-http_app = mcp.http_app(path="")                      # /mcp
-sse_app  = mcp.http_app(transport="sse", path="")     # /sse
+# 1) EIN FastMCP-ASGI App – enthält automatisch /mcp + /sse
+mcp_app = mcp.http_app()                 # interne Pfade /mcp und /sse
 
-# 2)  Health-Route
-async def health(_): 
+# 2) Health-Endpoint
+async def health(_):
     return PlainTextResponse("OK")
 
-# 3)  Haupt-App
-app = Starlette(lifespan=http_app.lifespan)
-app.router.redirect_slashes = False                  # 307-Redirects aus
-app.add_route("/health", health, methods=["GET"])    # Health zuerst
-app.mount("/mcp", http_app)                          # Streamable HTTP
-app.mount("/sse", sse_app)                           # SSE
+# 3) Starlette-Hülle
+app = Starlette(
+    routes=[Route("/health", health, methods=["GET"])],
+    lifespan=mcp_app.lifespan            # wichtig!
+)
+app.router.redirect_slashes = False      # kein 307 auf /mcp
+app.mount("/", mcp_app)                  # veröffentlicht /mcp & /sse
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0",
