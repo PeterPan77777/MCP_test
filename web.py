@@ -1,6 +1,5 @@
 """
-Web runner for Railway deployment
-Starts the MCP server with HTTP transport
+Web runner for Railway deployment - Fixed with proper lifespan
 """
 import os
 import uvicorn
@@ -9,50 +8,48 @@ from starlette.applications import Starlette
 from starlette.routing import Mount
 from starlette.responses import JSONResponse
 
-# Create the main app
-app = Starlette()
+# Get the MCP app (Streamable HTTP default)
+mcp_app = mcp.http_app()
 
-# Get MCP apps WITHOUT internal path prefix (path="")
-# This prevents double mounting: /mcp/mcp -> /mcp
-http_app = mcp.http_app(path="")                    # Streamable HTTP ohne internen /mcp
-sse_app = mcp.http_app(transport="sse", path="")    # SSE ohne internen /sse
+# Create main app with CRITICAL lifespan parameter!
+app = Starlette(
+    lifespan=mcp_app.lifespan  # ⚠️ OHNE DIES: 404 auf alle /mcp Routen!
+)
 
-# Mount the apps at specific paths
-app.mount("/mcp", http_app)   # ergibt genau /mcp
-app.mount("/sse", sse_app)    # ergibt genau /sse
+# Mount MCP app at root - provides /mcp endpoint
+app.mount("/", mcp_app)
 
-# Add root endpoint
-@app.route("/")
-async def root(request):
+# Add custom routes for info
+@app.route("/meta")
+async def meta(request):
     return JSONResponse({
         "service": "Simple MCP Server",
-        "version": "1.0",
+        "version": "1.0", 
         "endpoints": {
-            "mcp": "/mcp",
-            "sse": "/sse", 
-            "health": "/health"
+            "mcp_post": "POST /mcp - Start MCP session",
+            "mcp_get": "GET /mcp - SSE stream",
+            "health": "GET /health",
+            "delete": "DELETE /mcp - End session"
         },
-        "note": "Fixed double-path mounting issue"
+        "note": "FIXED: Added lifespan=mcp_app.lifespan",
+        "usage": {
+            "test_post": "curl -X POST -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"initialize\",\"id\":1}' /mcp",
+            "test_sse": "curl /mcp"
+        }
     })
 
-# Add health endpoint at root level
-@app.route("/health")
-async def health(request):
-    return JSONResponse({"status": "healthy", "service": "simple-mcp-server"})
-
 if __name__ == "__main__":
-    # Get port from environment or use 8080
     port = int(os.environ.get("PORT", 8080))
     
-    print(f"🚀 Starting Simple MCP Server on port {port}")
+    print(f"🚀 Starting MCP Server with proper lifespan on port {port}")
     print(f"📍 Endpoints:")
-    print(f"   - Root: http://localhost:{port}/")
-    print(f"   - Streamable HTTP: http://localhost:{port}/mcp")
-    print(f"   - SSE: http://localhost:{port}/sse")
-    print(f"   - Health check: http://localhost:{port}/health")
-    print(f"🔧 Fixed: Using path='' to prevent double mounting")
+    print(f"   - POST /mcp → MCP JSON-RPC")
+    print(f"   - GET /mcp → SSE Stream") 
+    print(f"   - DELETE /mcp → End session")
+    print(f"   - GET /health → Health check")
+    print(f"   - GET /meta → This info")
+    print(f"🔧 CRITICAL: lifespan=mcp_app.lifespan added!")
     
-    # Run with uvicorn
     uvicorn.run(
         app,
         host="0.0.0.0",
