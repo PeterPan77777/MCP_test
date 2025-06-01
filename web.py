@@ -12,12 +12,11 @@ async def health(_):
 
 app = Starlette(
     routes=[
-        Route("/health", health, methods=["GET"])   # ✅ echtes Route-Objekt
+        Route("/health", health, methods=["GET"])
     ],
-    lifespan=mcp_app.lifespan,
-    redirect_slashes=False                          # keine 307-Redirects
+    lifespan=mcp_app.lifespan                  # Session-Manager aktivieren
 )
-app.mount("/", mcp_app)                             # Basispfad → MCP
+app.mount("/", mcp_app)                        # MCP-Sub-App unter Root
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info") 
+    uvicorn.run(app, host="0.0.0.0", port=PORT) 
