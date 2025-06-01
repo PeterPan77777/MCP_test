@@ -208,7 +208,7 @@ async def calculate_engineering(
     ctx: Context = None
 ) -> Dict:
     """
-    Gateway-Funktion für Engineering-Tool-Ausführung.
+    Gateway-Funktion für Engineering-Tool-Ausführung mit detaillierter Fehleranalyse.
     
     Args:
         tool_name: Name des Engineering-Tools
@@ -216,10 +216,7 @@ async def calculate_engineering(
         ctx: FastMCP Context für Logging
         
     Returns:
-        Dict: Berechnungsergebnis
-        
-    Raises:
-        ValueError: Bei ungültigen Tools oder Parametern
+        Dict: Berechnungsergebnis oder detaillierte Fehleranalyse
     """
     if ctx:
         await ctx.info(f"Führe Engineering-Berechnung aus: {tool_name}")
@@ -239,16 +236,227 @@ async def calculate_engineering(
         }
         
     except Exception as e:
-        error_msg = f"Fehler bei Engineering-Berechnung '{tool_name}': {e}"
+        error_msg = str(e)
+        
+        # Detaillierte Fehleranalyse
+        error_analysis = await _analyze_calculation_error(tool_name, parameters, error_msg)
+        
         if ctx:
-            await ctx.error(error_msg)
+            await ctx.error(f"Berechnung fehlgeschlagen: {error_msg}")
+            await ctx.info(f"Fehleranalyse erstellt mit {len(error_analysis.get('solutions', []))} Lösungsvorschlägen")
         
         return {
             "tool_name": tool_name,
             "parameters": parameters,
-            "error": str(e),
-            "status": "error"
+            "error": error_msg,
+            "status": "error",
+            "error_analysis": error_analysis
         }
+
+async def _analyze_calculation_error(tool_name: str, parameters: Dict, error_msg: str) -> Dict:
+    """
+    Analysiert Berechnungsfehler und gibt detaillierte Lösungsvorschläge.
+    
+    Args:
+        tool_name: Name des fehlgeschlagenen Tools
+        parameters: Übergebene Parameter
+        error_msg: Originale Fehlermeldung
+        
+    Returns:
+        Dict: Detaillierte Fehleranalyse mit Lösungsvorschlägen
+    """
+    analysis = {
+        "error_type": "unknown",
+        "problem_description": "",
+        "solutions": [],
+        "corrected_examples": [],
+        "parameter_analysis": {}
+    }
+    
+    # 1. Parameter-Analyse
+    analysis["parameter_analysis"] = {
+        "received_count": len(parameters),
+        "parameter_types": {k: type(v).__name__ for k, v in parameters.items()},
+        "parameter_values": parameters,
+        "negative_values": [k for k, v in parameters.items() if isinstance(v, (int, float)) and v <= 0],
+        "string_values": [k for k, v in parameters.items() if isinstance(v, str)]
+    }
+    
+    # 2. Tool-spezifische Analyse
+    try:
+        from engineering_mcp.registry import get_tool_details
+        tool_details = await get_tool_details(tool_name)
+        expected_vars = tool_details.get("solvable_variables", [])
+        analysis["expected_variables"] = expected_vars
+        analysis["expected_count"] = len(expected_vars) - 1 if expected_vars else "unknown"
+    except:
+        analysis["expected_variables"] = "unknown"
+        analysis["expected_count"] = "unknown"
+    
+    # 3. Fehlertyp-spezifische Analyse
+    if "Tool" in error_msg and "nicht gefunden" in error_msg:
+        analysis.update(_analyze_tool_not_found_error(tool_name, parameters))
+    elif "parameter" in error_msg.lower() and ("3 von 4" in error_msg or "genau" in error_msg.lower()):
+        analysis.update(_analyze_parameter_count_error(tool_name, parameters, analysis["expected_count"]))
+    elif "positiv" in error_msg.lower() or "positive" in error_msg.lower():
+        analysis.update(_analyze_negative_value_error(tool_name, parameters))
+    elif "schema" in error_msg.lower():
+        analysis.update(_analyze_schema_error(tool_name, parameters))
+    elif isinstance(parameters, dict) and analysis["parameter_analysis"]["string_values"]:
+        analysis.update(_analyze_datatype_error(tool_name, parameters))
+    else:
+        analysis.update(_analyze_generic_error(tool_name, parameters, error_msg))
+    
+    return analysis
+
+def _analyze_tool_not_found_error(tool_name: str, parameters: Dict) -> Dict:
+    """Analysiert 'Tool nicht gefunden' Fehler"""
+    return {
+        "error_type": "tool_not_found",
+        "problem_description": f"Das Tool '{tool_name}' existiert nicht in der Registry.",
+        "solutions": [
+            "1. Nutze list_engineering_tools() um verfügbare Tools zu sehen",
+            "2. Überprüfe die Schreibweise des Tool-Namens (case-sensitive)",
+            "3. Nutze get_available_categories() um Kategorien zu erkunden",
+            "4. Tool-Namen beginnen meist mit 'solve_' (z.B. 'solve_kesselformel')"
+        ],
+        "corrected_examples": [
+            {
+                "description": "Korrekte Tool-Discovery",
+                "steps": [
+                    "categories = get_available_categories()",
+                    "tools = list_engineering_tools(category='pressure')",
+                    "result = calculate_engineering(tool_name='solve_kesselformel', parameters={...})"
+                ]
+            }
+        ]
+    }
+
+def _analyze_parameter_count_error(tool_name: str, parameters: Dict, expected_count) -> Dict:
+    """Analysiert Parameteranzahl-Fehler"""
+    received_count = len(parameters)
+    
+    return {
+        "error_type": "parameter_count_mismatch",
+        "problem_description": f"Falsche Anzahl Parameter: {received_count} erhalten, {expected_count} erwartet.",
+        "solutions": [
+            f"1. Gib genau {expected_count} Parameter an (nicht {received_count})",
+            "2. Prüfe mit get_tool_details() welche Parameter das Tool erwartet",
+            "3. Ein Tool mit n Variablen benötigt n-1 Input-Parameter",
+            "4. Die fehlende Variable wird automatisch berechnet"
+        ],
+        "corrected_examples": [
+            {
+                "description": "Kesselformel (4 Variablen → 3 Parameter)",
+                "wrong": {"p": 10, "d": 100, "sigma": 160, "s": 5},
+                "correct": {"p": 10, "d": 100, "sigma": 160},
+                "explanation": "Entferne einen Parameter - das Tool berechnet ihn automatisch"
+            }
+        ]
+    }
+
+def _analyze_negative_value_error(tool_name: str, parameters: Dict) -> Dict:
+    """Analysiert negative Werte Fehler"""
+    negative_params = [k for k, v in parameters.items() if isinstance(v, (int, float)) and v <= 0]
+    
+    return {
+        "error_type": "negative_values",
+        "problem_description": f"Negative oder Null-Werte nicht erlaubt: {negative_params}",
+        "solutions": [
+            "1. Alle physikalischen Größen müssen positiv sein (> 0)",
+            f"2. Ändere diese Parameter: {negative_params}",
+            "3. Prüfe die Einheiten - vielleicht ist eine Umrechnung nötig",
+            "4. Verwende realistische Ingenieurswerte"
+        ],
+        "corrected_examples": [
+            {
+                "description": "Positive Werte verwenden",
+                "wrong": {k: v for k, v in parameters.items()},
+                "correct": {k: abs(v) if isinstance(v, (int, float)) and v <= 0 else v for k, v in parameters.items()},
+                "explanation": "Alle Werte müssen positiv sein"
+            }
+        ]
+    }
+
+def _analyze_schema_error(tool_name: str, parameters: Dict) -> Dict:
+    """Analysiert Schema-Validierung-Fehler"""
+    return {
+        "error_type": "schema_validation",
+        "problem_description": "Parameter entsprechen nicht dem erwarteten Schema.",
+        "solutions": [
+            "1. Verwende get_tool_details() um das exakte Schema zu sehen",
+            "2. Prüfe Parameter-Namen (case-sensitive)",
+            "3. Stelle sicher, dass alle Werte Numbers sind (nicht Strings)",
+            "4. Verwende die exakten Variablennamen aus solvable_variables"
+        ],
+        "corrected_examples": [
+            {
+                "description": "Schema-konforme Parameter",
+                "steps": [
+                    "details = get_tool_details(tool_name='" + tool_name + "')",
+                    "# Verwende die Namen aus details['solvable_variables']",
+                    "# Stelle sicher: Numbers nicht Strings"
+                ]
+            }
+        ]
+    }
+
+def _analyze_datatype_error(tool_name: str, parameters: Dict) -> Dict:
+    """Analysiert Datentyp-Fehler (String statt Number)"""
+    string_params = [k for k, v in parameters.items() if isinstance(v, str)]
+    
+    corrected_params = {}
+    for k, v in parameters.items():
+        if isinstance(v, str):
+            try:
+                corrected_params[k] = float(v)
+            except:
+                corrected_params[k] = v
+        else:
+            corrected_params[k] = v
+    
+    return {
+        "error_type": "wrong_datatypes",
+        "problem_description": f"String-Werte statt Numbers: {string_params}",
+        "solutions": [
+            "1. Alle numerischen Parameter müssen Numbers sein, nicht Strings",
+            f"2. Konvertiere diese Parameter von String zu Number: {string_params}",
+            "3. In n8n: Verwende Number() oder parseFloat() Funktionen",
+            "4. JSON: Verwende 10 statt '10', 3.14 statt '3.14'"
+        ],
+        "corrected_examples": [
+            {
+                "description": "Datentyp-Korrektur",
+                "wrong": parameters,
+                "correct": corrected_params,
+                "explanation": "Numbers verwenden statt Strings"
+            }
+        ]
+    }
+
+def _analyze_generic_error(tool_name: str, parameters: Dict, error_msg: str) -> Dict:
+    """Analysiert allgemeine Fehler"""
+    return {
+        "error_type": "generic",
+        "problem_description": f"Unbekannter Fehler: {error_msg}",
+        "solutions": [
+            "1. Nutze get_tool_details() für detaillierte Parameter-Info",
+            "2. Prüfe die Tool-Dokumentation auf spezielle Anforderungen",
+            "3. Verwende list_engineering_tools() um ähnliche Tools zu finden",
+            "4. Stelle sicher, dass alle Werte realistic sind"
+        ],
+        "corrected_examples": [
+            {
+                "description": "Systematisches Debugging",
+                "steps": [
+                    "1. details = get_tool_details(tool_name='" + tool_name + "')",
+                    "2. Prüfe details['solvable_variables']",
+                    "3. Prüfe details['examples'] für korrekte Nutzung",
+                    "4. Verwende exakt die gezeigten Parameter-Formate"
+                ]
+            }
+        ]
+    }
 
 # Initialisierung beim Server-Start
 async def init_engineering_tools():
