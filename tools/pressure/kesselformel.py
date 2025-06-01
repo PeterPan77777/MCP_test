@@ -106,7 +106,30 @@ async def solve_kesselformel(
 # Tool-Metadaten für Registry
 TOOL_METADATA = {
     "name": "solve_kesselformel",
-    "description": "Löst die Kesselformel σ = p·d/(2·s) nach verschiedenen Variablen auf. Lösbare Variablen: [sigma, p, d, s]",
+    "short_description": "Kesselformel σ = p·d/(2·s) - Druckbehälterberechnung",
+    "description": """Löst die Kesselformel σ = p·d/(2·s) nach verschiedenen Variablen auf. Lösbare Variablen: [sigma, p, d, s]
+
+Die Kesselformel ist die Grundgleichung für dünnwandige Druckbehälter unter Innendruck.
+
+Parameter:
+- σ (sigma): Zulässige Spannung [N/mm²]
+- p: Innendruck [N/mm²]  
+- d: Außendurchmesser [mm]
+- s: Wanddicke [mm]
+
+Anwendungsbereich: Dünnwandige zylindrische Druckbehälter (s/d < 0.1)""",
     "tags": ["pressure", "engineering", "symbolic", "vessels"],
-    "function": solve_kesselformel
+    "function": solve_kesselformel,
+    "examples": [
+        {
+            "description": "Berechne Wanddicke für Druckbehälter",
+            "input": {"p": 10, "d": 100, "sigma": 160},
+            "expected_output": {"unknown_variable": "s", "result": 3.125, "unit": "mm"}
+        },
+        {
+            "description": "Berechne maximalen Innendruck",
+            "input": {"d": 100, "s": 5, "sigma": 160},
+            "expected_output": {"unknown_variable": "p", "result": 16.0, "unit": "N/mm²"}
+        }
+    ]
 } 

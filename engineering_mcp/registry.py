@@ -223,4 +223,84 @@ async def discover_tools(mcp_instance: Any) -> int:
     Returns:
         int: Anzahl der entdeckten Tools
     """
-    return await discover_engineering_tools() 
+    return await discover_engineering_tools()
+
+
+async def get_tool_details(tool_name: str) -> Dict:
+    """
+    Liefert vollständige Dokumentation für ein spezifisches Tool.
+    
+    Args:
+        tool_name: Name des Tools
+        
+    Returns:
+        Dict: Ausführliche Tool-Dokumentation
+        
+    Raises:
+        ValueError: Bei unbekanntem Tool
+    """
+    if tool_name not in _ENGINEERING_TOOLS_REGISTRY:
+        available_tools = list(_ENGINEERING_TOOLS_REGISTRY.keys())
+        raise ValueError(f"Unbekanntes Tool: {tool_name}. Verfügbare Tools: {available_tools}")
+    
+    tool_data = _ENGINEERING_TOOLS_REGISTRY[tool_name]
+    
+    # Basis-Informationen
+    details = {
+        "name": tool_name,
+        "category": tool_data.get('category', 'unknown'),
+        "tags": tool_data.get('tags', []),
+        "short_description": tool_data.get('short_description', tool_data['description'].split('.')[0]),
+        "full_description": tool_data.get('description', ''),
+        "solvable_variables": extract_solvable_variables(tool_data.get('description', ''))
+    }
+    
+    # Erweiterte Informationen falls vorhanden
+    if 'examples' in tool_data:
+        details['examples'] = tool_data['examples']
+    
+    if 'input_schema' in tool_data:
+        details['input_schema'] = tool_data['input_schema']
+    
+    if 'output_schema' in tool_data:
+        details['output_schema'] = tool_data['output_schema']
+    
+    # Standard Input/Output Schema basierend auf lösbaren Variablen
+    if 'input_schema' not in details and details['solvable_variables']:
+        details['input_schema'] = {
+            "type": "object",
+            "properties": {
+                var: {
+                    "type": "number",
+                    "description": f"Wert für {var} (optional)"
+                } for var in details['solvable_variables']
+            },
+            "additionalProperties": False,
+            "minProperties": len(details['solvable_variables']) - 1,
+            "maxProperties": len(details['solvable_variables']) - 1,
+            "description": f"Genau {len(details['solvable_variables']) - 1} von {len(details['solvable_variables'])} Parametern müssen angegeben werden"
+        }
+    
+    if 'output_schema' not in details:
+        details['output_schema'] = {
+            "type": "object",
+            "properties": {
+                "unknown_variable": {"type": "string", "description": "Die berechnete Variable"},
+                "result": {"type": "number", "description": "Der berechnete Wert"},
+                "unit": {"type": "string", "description": "Einheit des Ergebnisses"},
+                "formula": {"type": "string", "description": "Die verwendete Formel"},
+                "solution_expression": {"type": "string", "description": "Die Lösungsformel"},
+                "calculation_steps": {"type": "string", "description": "Berechnungsschritte"}
+            }
+        }
+    
+    # Verwendungshinweise generieren
+    if details['solvable_variables']:
+        details['usage_hints'] = []
+        for i, var in enumerate(details['solvable_variables']):
+            other_vars = [v for v in details['solvable_variables'] if v != var]
+            details['usage_hints'].append(
+                f"Um {var} zu berechnen: Gib {', '.join(other_vars)} an"
+            )
+    
+    return details 

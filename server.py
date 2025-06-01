@@ -5,195 +5,64 @@ from engineering_mcp.registry import (
     get_tool_info_for_llm, 
     get_symbolic_tools_summary,
     call_engineering_tool,
-    discover_engineering_tools
+    discover_engineering_tools,
+    get_tool_details as get_tool_details_from_registry
 )
 
-mcp = FastMCP(name="demo-mcp", instructions="Einfacher Test-Server mit Engineering-Tools")
+# MCP Server mit ausführlichen Instructions für LLMs
+mcp = FastMCP(
+    name="EngineersCalc", 
+    instructions="""
+🔧 Engineering Calculation Server - Symbolische Ingenieurberechnungen
 
-@mcp.tool()
-def echo(msg: str) -> str:
-    "Gibt die Nachricht unverändert zurück"
-    return msg
+📋 ÜBERSICHT:
+Dieser Server bietet Zugriff auf eine Sammlung von Engineering-Tools, die Formeln 
+symbolisch nach verschiedenen Variablen auflösen können. Alle Tools verwenden SymPy
+für exakte mathematische Berechnungen.
+
+🎯 WICHTIGER WORKFLOW (IMMER IN DIESER REIHENFOLGE ausführen):
+1️⃣ get_available_categories() - Zeigt verfügbare Tool-Kategorien
+2️⃣ list_engineering_tools(category="...") - Listet alle Tools einer Kategorie auf
+3️⃣ get_tool_details(tool_name="...") - Beziehe Detaillierte Tool-Info, wie Du dieses Tool genau benutzten musst.
+4️⃣ calculate_engineering(tool_name="...", parameters={...}) - Tool ausführen
+
+⚙️ KERNKONZEPT - Symbolische Variablen-Auflösung:
+- Jedes Tool implementiert EINE Formel mit mehreren Variablen
+- Du gibst n-1 Variablen an, das Tool berechnet die fehlende Variable
+- Beispiel: Kesselformel σ = p·d/(2·s) hat 4 Variablen [sigma, p, d, s]
+  → Gib 3 Werte an (z.B. p=10, d=100, sigma=160)
+  → Tool berechnet die 4. Variable (hier: s=3.125)
+
+📂 VERFÜGBARE KATEGORIEN:
+- über get_available_categories() erkunden
+
+💡 TIPPS:
+- Starte IMMER mit get_available_categories()
+- Nutze get_tool_details() wenn Parameter unklar sind
+- Alle physikalischen Werte müssen positiv sein
+- Achte auf Einheiten (werden in Tool-Details angegeben)
+
+🔍 BEISPIEL-WORKFLOW:
+1. categories = get_available_categories()
+2. tools = list_engineering_tools(category="pressure")
+3. details = get_tool_details(tool_name="solve_kesselformel")  
+4. result = calculate_engineering(
+     tool_name="solve_kesselformel",
+     parameters={"p": 10, "d": 100, "sigma": 160}
+   )
+"""
+)
 
 @mcp.tool()
 def clock() -> str:
     "Aktuelle UTC-Zeit zurückgeben"
     return datetime.datetime.utcnow().isoformat() + "Z"
 
-# ===== Meta-Tools für zweistufige Architektur =====
-
-@mcp.tool(
-    name="list_engineering_tools",
-    description="Listet alle verfügbaren Engineering-Tools mit lösbaren Variablen auf. Verfügbare Kategorien: pressure, geometry, materials, thermodynamics, statics",
-    tags=["discovery", "engineering", "meta"]
-)
-async def list_engineering_tools(
-    category: Optional[str] = None,
-    ctx: Context = None
-) -> List[Dict]:
-    """
-    Listet alle verfügbaren Engineering-Tools mit ihren lösbaren Variablen auf.
-    
-    Args:
-        category: Optional Kategorie-Filter (z.B. "pressure", "geometry")
-        ctx: FastMCP Context für Logging
-        
-    Returns:
-        List[Dict]: Tools mit Namen, Beschreibung, Tags und lösbaren Variablen
-    """
-    if ctx:
-        await ctx.info("Sammle Engineering-Tool-Informationen...")
-    
-    # Hole Engineering-Tools aus separater Registry (NICHT von MCP!)
-    tool_info = get_tool_info_for_llm(include_engineering=True)
-    
-    # Filter nach Kategorie wenn angegeben
-    if category:
-        tool_info = [tool for tool in tool_info if category in tool.get("tags", []) or category == tool.get("category")]
-    
-    if ctx:
-        await ctx.info(f"Gefunden: {len(tool_info)} Engineering-Tools")
-    
-    return tool_info
-
-@mcp.tool(
-    name="get_symbolic_tools_overview",
-    description="Gibt eine Übersicht aller symbolischen Tools für LLM-Orchestrierung zurück",
-    tags=["discovery", "engineering", "symbolic", "meta"]
-)
-async def get_symbolic_tools_overview(
-    ctx: Context = None
-) -> Dict:
-    """
-    Erstellt eine strukturierte Übersicht aller symbolischen Engineering-Tools.
-    
-    Args:
-        ctx: FastMCP Context für Logging
-        
-    Returns:
-        Dict: Kategorisierte Übersicht mit Formeln und lösbaren Variablen
-    """
-    if ctx:
-        await ctx.info("Erstelle symbolische Tools-Übersicht...")
-    
-    # Hole Engineering-Tools aus separater Registry
-    summary = get_symbolic_tools_summary()
-    
-    if ctx:
-        await ctx.info(f"Übersicht erstellt: {summary.get('total_tools', 0)} symbolische Tools")
-    
-    return summary
-
-@mcp.tool(
-    name="suggest_tool_for_variables",
-    description="Schlägt passende Tools basierend auf gegebenen/gesuchten Variablen vor",
-    tags=["discovery", "engineering", "recommendation"]
-)
-async def suggest_tool_for_variables(
-    known_variables: List[str],
-    unknown_variable: str,
-    ctx: Context = None
-) -> List[Dict]:
-    """
-    Schlägt passende Tools vor, die gegebene bekannte Variablen verwenden können.
-    
-    Args:
-        known_variables: Liste der bekannten Variablen
-        unknown_variable: Gesuchte Variable
-        ctx: FastMCP Context für Logging
-        
-    Returns:
-        List[Dict]: Passende Tools mit Begründung
-    """
-    if ctx:
-        await ctx.info(f"Suche Tools für {unknown_variable} mit bekannten Variablen: {known_variables}")
-    
-    suggestions = []
-    
-    # Hole Engineering-Tools aus separater Registry
-    tool_info = get_tool_info_for_llm(include_engineering=True)
-    
-    for tool in tool_info:
-        solvable_vars = tool.get("solvable_variables", [])
-        
-        # Check ob das Tool die gesuchte Variable lösen kann
-        if unknown_variable in solvable_vars:
-            # Check ob alle bekannten Variablen im Tool verfügbar sind
-            available_vars = set(solvable_vars)
-            required_vars = set(known_variables + [unknown_variable])
-            
-            if required_vars.issubset(available_vars):
-                # Check ob genau die richtige Anzahl Variablen gegeben ist
-                if len(known_variables) == len(solvable_vars) - 1:
-                    suggestions.append({
-                        "tool_name": tool["name"],
-                        "description": tool["description"],
-                        "solvable_variables": solvable_vars,
-                        "reason": f"Kann {unknown_variable} aus {known_variables} berechnen",
-                        "confidence": "high"
-                    })
-    
-    if ctx:
-        await ctx.info(f"Gefunden: {len(suggestions)} passende Tools")
-    
-    return suggestions
-
-@mcp.tool(
-    name="calculate_engineering",
-    description="Führt Engineering-Berechnungen über die separate Tool-Registry aus",
-    tags=["engineering", "execution", "gateway"]
-)
-async def calculate_engineering(
-    tool_name: str,
-    parameters: Dict,
-    ctx: Context = None
-) -> Dict:
-    """
-    Gateway-Funktion für Engineering-Tool-Ausführung.
-    
-    Args:
-        tool_name: Name des Engineering-Tools
-        parameters: Tool-Parameter als Dictionary
-        ctx: FastMCP Context für Logging
-        
-    Returns:
-        Dict: Berechnungsergebnis
-        
-    Raises:
-        ValueError: Bei ungültigen Tools oder Parametern
-    """
-    if ctx:
-        await ctx.info(f"Führe Engineering-Berechnung aus: {tool_name}")
-        await ctx.info(f"Parameter: {parameters}")
-    
-    try:
-        result = await call_engineering_tool(tool_name, parameters)
-        
-        if ctx:
-            await ctx.info(f"Berechnung erfolgreich abgeschlossen")
-        
-        return {
-            "tool_name": tool_name,
-            "parameters": parameters,
-            "result": result,
-            "status": "success"
-        }
-        
-    except Exception as e:
-        error_msg = f"Fehler bei Engineering-Berechnung '{tool_name}': {e}"
-        if ctx:
-            await ctx.error(error_msg)
-        
-        return {
-            "tool_name": tool_name,
-            "parameters": parameters,
-            "error": str(e),
-            "status": "error"
-        }
+# ===== Meta-Tools für mehrstufige Discovery =====
 
 @mcp.tool(
     name="get_available_categories",
-    description="Gibt alle verfügbaren Engineering-Tool-Kategorien für die Discovery zurück",
+    description="Gibt alle verfügbaren Engineering-Tool-Kategorien zurück. IMMER ZUERST AUFRUFEN!",
     tags=["discovery", "categories", "meta"]
 )
 async def get_available_categories(
@@ -246,9 +115,150 @@ async def get_available_categories(
         "usage_hint": "Verwende diese Kategorien mit list_engineering_tools(category='...')"
     }
 
+@mcp.tool(
+    name="list_engineering_tools",
+    description="Listet alle Tools einer spezifischen Kategorie mit Kurzbeschreibungen auf",
+    tags=["discovery", "engineering", "meta"]
+)
+async def list_engineering_tools(
+    category: str,
+    ctx: Context = None
+) -> List[Dict]:
+    """
+    Listet alle verfügbaren Engineering-Tools einer Kategorie mit Kurzbeschreibungen auf.
+    
+    Args:
+        category: Kategorie-Filter (z.B. "pressure", "geometry") - PFLICHTPARAMETER
+        ctx: FastMCP Context für Logging
+        
+    Returns:
+        List[Dict]: Tools mit Namen, Kurzbeschreibung und lösbaren Variablen
+    """
+    if ctx:
+        await ctx.info(f"Sammle Engineering-Tools für Kategorie: {category}")
+    
+    # Hole Engineering-Tools aus separater Registry
+    tool_info = get_tool_info_for_llm(include_engineering=True)
+    
+    # Filter nach Kategorie
+    filtered_tools = [tool for tool in tool_info if category in tool.get("tags", []) or category == tool.get("category")]
+    
+    # Kompakte Darstellung für Discovery
+    compact_tools = []
+    for tool in filtered_tools:
+        compact_tools.append({
+            "name": tool["name"],
+            "short_description": tool.get("short_description", tool["description"].split(".")[0]),
+            "solvable_variables": tool["solvable_variables"],
+            "tags": tool["tags"]
+        })
+    
+    if ctx:
+        await ctx.info(f"Gefunden: {len(compact_tools)} Tools in Kategorie {category}")
+    
+    return compact_tools
+
+@mcp.tool(
+    name="get_tool_details",
+    description="Ruft detaillierte Informationen zu einem spezifischen Tool ab",
+    tags=["discovery", "engineering", "documentation", "meta"]
+)
+async def get_tool_details(
+    tool_name: str,
+    ctx: Context = None
+) -> Dict:
+    """
+    Liefert vollständige Dokumentation eines Engineering-Tools.
+    
+    Args:
+        tool_name: Name des Tools (z.B. "solve_kesselformel")
+        ctx: FastMCP Context für Logging
+        
+    Returns:
+        Dict: Ausführliche Tool-Dokumentation mit Parametern, Beispielen und Schema
+    """
+    if ctx:
+        await ctx.info(f"Hole Details für Tool: {tool_name}")
+    
+    try:
+        details = await get_tool_details_from_registry(tool_name)
+        
+        if ctx:
+            await ctx.info(f"Details erfolgreich abgerufen für: {tool_name}")
+        
+        return details
+        
+    except ValueError as e:
+        if ctx:
+            await ctx.error(f"Tool nicht gefunden: {tool_name}")
+        
+        return {
+            "error": str(e),
+            "available_tools": "Nutze list_engineering_tools() um verfügbare Tools zu sehen"
+        }
+
+@mcp.tool(
+    name="calculate_engineering",
+    description="Führt ein Engineering-Tool mit den angegebenen Parametern aus",
+    tags=["engineering", "execution", "gateway"]
+)
+async def calculate_engineering(
+    tool_name: str,
+    parameters: Dict,
+    ctx: Context = None
+) -> Dict:
+    """
+    Gateway-Funktion für Engineering-Tool-Ausführung.
+    
+    Args:
+        tool_name: Name des Engineering-Tools
+        parameters: Tool-Parameter als Dictionary
+        ctx: FastMCP Context für Logging
+        
+    Returns:
+        Dict: Berechnungsergebnis
+        
+    Raises:
+        ValueError: Bei ungültigen Tools oder Parametern
+    """
+    if ctx:
+        await ctx.info(f"Führe Engineering-Berechnung aus: {tool_name}")
+        await ctx.info(f"Parameter: {parameters}")
+    
+    try:
+        result = await call_engineering_tool(tool_name, parameters)
+        
+        if ctx:
+            await ctx.info(f"Berechnung erfolgreich abgeschlossen")
+        
+        return {
+            "tool_name": tool_name,
+            "parameters": parameters,
+            "result": result,
+            "status": "success"
+        }
+        
+    except Exception as e:
+        error_msg = f"Fehler bei Engineering-Berechnung '{tool_name}': {e}"
+        if ctx:
+            await ctx.error(error_msg)
+        
+        return {
+            "tool_name": tool_name,
+            "parameters": parameters,
+            "error": str(e),
+            "status": "error"
+        }
+
 # Initialisierung beim Server-Start
 async def init_engineering_tools():
     """Lädt Engineering-Tools beim Server-Start"""
     tools_count = await discover_engineering_tools()
-    print(f"✅ {tools_count} Engineering-Tools entdeckt (separat gespeichert)")
+    print(f"✅ {tools_count} Engineering-Tools entdeckt")
+    print(f"✅ 4 Meta-Tools + 1 Utility-Tool (clock) bereit")
+    print(f"🎯 Mehrstufige Discovery aktiviert:")
+    print(f"   1. get_available_categories")
+    print(f"   2. list_engineering_tools")  
+    print(f"   3. get_tool_details")
+    print(f"   4. calculate_engineering")
     return tools_count 

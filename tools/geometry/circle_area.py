@@ -98,7 +98,28 @@ async def solve_circle_area(
 # Tool-Metadaten für Registry
 TOOL_METADATA = {
     "name": "solve_circle_area",
-    "description": "Löst die Kreisflächenformel A = π·r² nach verschiedenen Variablen auf. Lösbare Variablen: [area, radius]",
+    "short_description": "Kreisfläche A = π·r² - Berechnung von Fläche oder Radius",
+    "description": """Löst die Kreisflächenformel A = π·r² nach verschiedenen Variablen auf. Lösbare Variablen: [area, radius]
+
+Die Kreisflächenformel ist eine der grundlegenden geometrischen Formeln.
+
+Parameter:
+- A (area): Kreisfläche [mm²]
+- r (radius): Radius [mm]
+
+Das Tool kann entweder die Fläche aus dem Radius oder den Radius aus der Fläche berechnen.""",
     "tags": ["geometry", "engineering", "symbolic", "area"],
-    "function": solve_circle_area
+    "function": solve_circle_area,
+    "examples": [
+        {
+            "description": "Berechne Kreisfläche aus Radius",
+            "input": {"radius": 10},
+            "expected_output": {"unknown_variable": "area", "result": 314.159, "unit": "mm²"}
+        },
+        {
+            "description": "Berechne Radius aus Kreisfläche", 
+            "input": {"area": 314.159},
+            "expected_output": {"unknown_variable": "radius", "result": 10.0, "unit": "mm"}
+        }
+    ]
 } 
