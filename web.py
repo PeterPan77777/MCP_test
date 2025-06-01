@@ -5,26 +5,26 @@ from starlette.responses import PlainTextResponse
 from starlette.routing import Route
 from server import mcp
 
-# ① FastMCP-Sub-Apps OHNE path-Hack
-http_app = mcp.http_app()                      # ➜ /mcp (+ /mcp/{id})
-sse_app  = mcp.http_app(transport="sse")       # ➜ /sse (+ /sse/messages)
+# 1️⃣  Sub-Apps: internes Prefix entfernen (path="/")
+http_app = mcp.http_app(path="/")                        # registriert "/"
+sse_app  = mcp.http_app(transport="sse", path="/")       # registriert "/"
 
-# ② Trailing-Slash-Redirects ausschalten – jeweils im Sub-Router
-http_app.router.redirect_slashes = False       # verhindert 307 /mcp ➜ /mcp/
-sse_app.router.redirect_slashes  = False       # nur der Vollständigkeit halber
+# 2️⃣  Redirect-Schalter im Kinder-Router
+http_app.router.redirect_slashes = False
+sse_app.router.redirect_slashes  = False
 
-# ③ Health-Endpoint
+# 3️⃣  Health-Route
 async def health(_): 
     return PlainTextResponse("OK")
 
-# ④ Haupt-App – Health zuerst, dann beide Sub-Apps unter Root mounten
-app = Starlette(
-    routes=[Route("/health", health, methods=["GET"])],
-    lifespan=http_app.lifespan                 # Session-Manager laden!
-)
-app.router.redirect_slashes = False           # auch im Root-Router
-app.mount("/", http_app)                      # veröffentlicht /mcp
-app.mount("/", sse_app)                       # veröffentlicht /sse
+# 4️⃣  Haupt-App
+app = Starlette(routes=[Route("/health", health, methods=["GET"])],
+                lifespan=http_app.lifespan)
+app.router.redirect_slashes = False                     # root-Router
+
+# 5️⃣  *Ein* Mount je Transport – mit korrektem Präfix
+app.mount("/mcp", http_app)                             # ergibt   /mcp
+app.mount("/sse", sse_app)                              # ergibt   /sse
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0",
