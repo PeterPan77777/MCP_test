@@ -2,32 +2,26 @@
 import os, uvicorn
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse
-from starlette.routing import Route, Router
+from starlette.routing import Route
 from server import mcp        # deine Tools
 
-PORT = int(os.getenv("PORT", 8080))
-
-# 1) Sub-Apps OHNE internes Prefix
-http_app = mcp.http_app(path="/")                 # Streamable-HTTP
-sse_app  = mcp.http_app(transport="sse", path="/")# SSE
+# 1) Sub-Apps OHNE internes Prefix  (keine Doppelpfade)
+http_app = mcp.http_app(path="/")                 #  /mcp
+sse_app  = mcp.http_app(transport="sse", path="/")#  /sse
 
 # 2) Health-Route
 async def health(_): 
     return PlainTextResponse("OK")
 
-# 3) Eigenen Router anlegen, Redirects abschalten
-router = Router(redirect_slashes=False)
-router.mount("/mcp", http_app)                    # /mcp
-router.mount("/sse", sse_app)                     # /sse
+# 2) Starlette-App ohne Router-Hack anlegen
+app = Starlette(lifespan=http_app.lifespan)
+app.router.redirect_slashes = False               # Trailing-Slash-Redirects aus
 
-# 4) Haupt-App: Health zuerst, dann Mount aller Sub-Routen
-app = Starlette(
-    routes=[
-        Route("/health", health, methods=["GET"]),
-        router                                    # alle /mcp & /sse Endpunkte
-    ],
-    lifespan=http_app.lifespan
-)
+# 3) Routen sauber registrieren
+app.add_route("/health", health, methods=["GET"]) # Health zuerst
+app.mount("/mcp", http_app)                       # Streamable HTTP
+app.mount("/sse", sse_app)                        # SSE
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=PORT)
+    uvicorn.run(app, host="0.0.0.0",
+                port=int(os.getenv("PORT", 8080)))
