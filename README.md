@@ -1,390 +1,141 @@
-# Context7 MCP Server für DigitalOcean
+# Simple MCP Server
 
-Ein MCP (Model Context Protocol) Server mit Context7 Integration, optimiert für DigitalOcean Deployment.
+Ein minimaler MCP (Model Context Protocol) Server mit SSE und HTTP Streamable Support.
 
 ## Features
 
-- 🚀 **FastMCP 2.5.2** - Neueste Version mit verbesserter Performance
-- 📚 **Context7 Integration** - Echtzeit-Zugriff auf aktuelle Library-Dokumentationen
-- 🌐 **Stateless HTTP** - Optimiert für Cloud-Skalierbarkeit
-- 🔧 **n8n Kompatibilität** - SSE Endpoint für n8n Integration
-- ☁️ **DigitalOcean Ready** - Vorkonfiguriert für App Platform
-
-## Endpoints
-
-- `/` - Service-Informationen und Status
-- `/health` - Health Check für Monitoring
-- `/sse` - Server-Sent Events für n8n (GET & POST)
-- `/mcp` - Streamable HTTP für MCP Protokoll
+- ✅ Streamable HTTP Transport
+- ✅ SSE Transport (Legacy)
+- ✅ Railway-ready
+- ✅ MCP Inspector kompatibel
 
 ## Tools
 
-### 🔍 Library Management
-- `resolve_library` - Konvertiert Library-Namen zu Context7 IDs
-- `get_documentation` - Ruft Dokumentation mit optionalem Topic-Filter ab
-- `search_and_document` - Kombinierte Suche und Dokumentationsabruf
-
-### 🛠️ Utility Tools
-- `echo` - Test-Tool zum Echo von Text
-- `hello` - Freundliche Begrüßung mit Namen
-- `server_info` - Detaillierte Server-Informationen
-
-## Deployment auf DigitalOcean
-
-1. Fork dieses Repository
-2. Erstelle eine neue App auf DigitalOcean App Platform
-3. Verbinde dein GitHub Repository
-4. Deploy!
-
-Die App nutzt:
-- **Python 3.11** Environment
-- **Procfile** für den Startbefehl
-- **app.yaml** für DigitalOcean Konfiguration
-
-## SSE Troubleshooting auf DigitalOcean
-
-### Problem: MCP Inspector bricht mit AbortError ab
-
-DigitalOcean's Nginx-Proxy puffert SSE Streams standardmäßig. Die Lösung:
-
-#### 1. Verwende POST statt GET (empfohlen):
-```bash
-# POST funktioniert besser auf DigitalOcean App Platform
-curl -X POST -N https://squid-app-bjpyk.ondigitalocean.app/sse
-```
-
-#### 2. Teste mit MCP Inspector:
-```bash
-# Standard GET (kann Probleme haben)
-npx @modelcontextprotocol/inspector \
-  --cli https://squid-app-bjpyk.ondigitalocean.app/sse
-
-# Alternative: Nutze streamable-http (empfohlen)
-npx @modelcontextprotocol/inspector \
-  --cli https://squid-app-bjpyk.ondigitalocean.app/mcp \
-  --transport streamable-http
-```
-
-#### 3. Technische Details:
-- **4KB Flush-Chunk**: Durchbricht Nginx Buffer sofort
-- **X-Accel-Buffering: no**: Deaktiviert Proxy-Buffering
-- **POST Support**: Umgeht einige DigitalOcean SSE-Probleme
-- **20s Keep-alive**: Verhindert 55s Timeout
-
-### Curl-Tests
-
-```bash
-# Test SSE mit GET
-curl -N -H "Accept: text/event-stream" \
-     https://squid-app-bjpyk.ondigitalocean.app/sse
-
-# Test SSE mit POST (empfohlen für DigitalOcean)
-curl -X POST -N -H "Accept: text/event-stream" \
-     -H "Cache-Control: no-cache" \
-     https://squid-app-bjpyk.ondigitalocean.app/sse
-
-# Test MCP streamable-http
-curl https://squid-app-bjpyk.ondigitalocean.app/mcp
-```
+1. **echo** - Gibt eine Nachricht zurück
+2. **calculate** - Evaluiert mathematische Ausdrücke
+3. **server_info** - Zeigt Server-Informationen
 
 ## Lokale Entwicklung
 
-```bash
-# Repository klonen
-git clone https://github.com/yourusername/context7-mcp-server.git
-cd context7-mcp-server
-
-# Dependencies installieren
-pip install -r requirements.txt
-
-# Server starten
-python main.py
-```
-
-## Umgebungsvariablen
-
-- `PORT` - Server Port (Standard: 8080)
-- `PYTHONUNBUFFERED` - Python Output unbuffered (1)
-- `DISABLE_COMPRESSION` - Deaktiviert globale Kompression für SSE
-
-## Technologie-Stack
-
-- **FastMCP 2.5.2** - MCP Server Framework
-- **Uvicorn** - ASGI Server
-- **httpx** - Async HTTP Client für Context7 API
-- **sse-starlette** - SSE Support mit Anti-Buffering
-
-## Lizenz
-
-MIT
-
-## 🚀 Features
-
-- **FastAPI + FastMCP 2.2** - Moderne, performante MCP Server Implementation
-- **Dual Transport** - SSE für n8n + streamable-http für moderne Clients
-- **Context7 Integration** - Aktuelle Dokumentationen für alle Libraries abrufen
-- **Docker-basiert** - Konsistente Deployments auf DigitalOcean
-- **Sofortiger SSE-Handshake** - Behebt n8n Reconnect-Probleme
-- **Deutsche Benutzeroberfläche** - Alle Antworten auf Deutsch
-
-## 📁 Projekt Struktur
-
-```
-context7-mcp-server/
-├── app/
-│   └── main.py          # FastAPI + FastMCP + SSE Handshake
-├── requirements.txt     # Python Dependencies
-├── Dockerfile           # Container Build
-├── app.yaml            # DigitalOcean App Platform Config
-├── README.md           # Diese Dokumentation
-└── deploy.md          # Detaillierte Deploy-Anleitung
-```
-
-## 📚 Verfügbare Tools
-
-1. **echo** - Echo-Test für Verbindungscheck
-2. **hello** - Freundliche Begrüßung
-3. **resolve_library** - Library Namen zu Context7 ID auflösen
-4. **get_documentation** - Dokumentation für Library ID abrufen
-5. **search_and_document** - Kombinierte Suche und Dokumentation (⭐ BEST)
-6. **server_info** - Server-Informationen anzeigen
-
-## 🌐 Endpoints
-
-- **`/`** - Server-Info und Status
-- **`/health`** - Health Check für DigitalOcean
-- **`/sse`** - Server-Sent Events (für n8n)
-- **`/mcp`** - Streamable-HTTP (moderne MCP Clients)
-
-## 🛠️ Lokale Entwicklung
-
-### Installation
+### 1. Installation
 
 ```bash
-# Repository klonen
-git clone https://github.com/PeterPan77777/MCP_test.git
-cd MCP_test
-
-# Virtual Environment
+# Virtual Environment erstellen
 python -m venv venv
-# Windows:
+
+# Aktivieren (Windows)
 venv\Scripts\activate
-# Linux/Mac:
+
+# Aktivieren (Mac/Linux)
 source venv/bin/activate
 
 # Dependencies installieren
 pip install -r requirements.txt
 ```
 
-### Server starten
+### 2. Server starten
 
+**Option A: Stdio Mode (für lokale Tests)**
 ```bash
-# Direkt mit uvicorn
-uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
-
-# Oder mit Docker
-docker build -t context7-mcp .
-docker run -p 8080:8080 context7-mcp
+python server.py
 ```
 
-### Testing
-
-#### 1. Health Check
+**Option B: HTTP Mode (für MCP Inspector)**
 ```bash
-curl http://localhost:8080/health
-# Erwartung: {"status": "ok", "service": "context7-mcp-server"}
+python web.py
 ```
 
-#### 2. SSE Handshake (n8n kompatibel)
-```bash
-curl -N http://localhost:8080/sse
-# Erwartung: 
-# event: endpoint
-# data: /messages?sessionId=...
-```
+### 3. Mit MCP Inspector testen
 
-#### 3. MCP Inspector
-
-**Streamable-HTTP (empfohlen):**
 ```bash
-npx @modelcontextprotocol/inspector
-# URL: http://localhost:8080/mcp
-# Transport: streamable-http
-```
+# Installiere MCP Inspector
+npm install -g @modelcontextprotocol/inspector
 
-**SSE (n8n Modus):**
-```bash
+# Teste mit Streamable HTTP (empfohlen)
+npx @modelcontextprotocol/inspector http://localhost:8080/mcp
+
+# Oder teste mit SSE
 npx @modelcontextprotocol/inspector http://localhost:8080/sse
 ```
 
-## 🌐 DigitalOcean Deployment
+## Railway Deployment
 
 ### 1. Repository vorbereiten
 
 ```bash
+git init
 git add .
-git commit -m "Context7 MCP Server - Docker optimiert"
-git push origin main
+git commit -m "Initial commit"
 ```
 
-### 2. DigitalOcean App erstellen
-
-1. **DigitalOcean Dashboard:** https://cloud.digitalocean.com/
-2. **Apps → Create App**
-3. **GitHub Repository:** `PeterPan77777/MCP_test`
-4. **Build Environment:** Docker (wird automatisch erkannt)
-5. **app.yaml** wird automatisch verwendet
-6. **Deploy!**
-
-### 3. Deployment verifizieren
-
-Nach dem Deployment (URL: `https://deine-app.ondigitalocean.app`):
+### 2. Auf GitHub pushen
 
 ```bash
-# Health Check
-curl https://deine-app.ondigitalocean.app/health
-
-# SSE Handshake (muss sofort antworten!)
-curl -N https://deine-app.ondigitalocean.app/sse
-
-# MCP Inspector
-npx @modelcontextprotocol/inspector https://deine-app.ondigitalocean.app/mcp
+# Erstelle ein neues Repository auf GitHub
+# Dann:
+git remote add origin https://github.com/DEIN_USERNAME/DEIN_REPO.git
+git push -u origin main
 ```
 
-## 📡 n8n Integration
-
-### Setup
-
-1. **n8n AI Agent** erstellen
-2. **MCP Server hinzufügen:**
-   - **URL:** `https://deine-app.ondigitalocean.app/sse`
-   - **Transport:** SSE
-3. **Agent starten** - sollte sofort verbinden (kein Reconnect-Loop!)
-
-### Verwendung
-
-```javascript
-// Schnelle Dokumentationssuche
-search_and_document("react", "hooks")
-
-// Spezifische Library
-resolve_library("fastapi")
-get_documentation("/tiangolo/fastapi", "authentication")
-
-// Server-Test
-echo("Hello World")
-```
-
-## 🎯 Context7 Beispiele
-
-### React Hooks Dokumentation
-```bash
-search_and_document("react", "hooks")
-```
-
-### FastAPI Authentication
-```bash
-resolve_library("fastapi")
-# Dann mit der erhaltenen Library ID:
-get_documentation("/tiangolo/fastapi", "authentication")
-```
-
-### Next.js Routing
-```bash
-search_and_document("next.js", "routing")
-```
-
-## 🐛 Troubleshooting
-
-### Problem: n8n Reconnect-Loop
-
-**Symptom:** n8n verbindet sich immer wieder neu
-
-**Lösung:** 
-- Prüfe `/sse` Endpoint: `curl -N https://app.url/sse`
-- Erster Frame muss sofort kommen: `event: endpoint`
-- Check DigitalOcean Logs für Buffering-Probleme
-
-### Problem: 404 auf Endpoints
-
-**Symptom:** Alle Endpoints geben 404
-
-**Lösung:**
-1. `app.yaml` prüfen - `routes: - path: /` vorhanden?
-2. Docker Build erfolgreich? Check DigitalOcean Build Logs
-3. Health Check läuft? `/health` endpoint testen
-
-### Problem: MCP Inspector "Cannot connect"
-
-**Symptom:** Inspector zeigt Verbindungsfehler
-
-**Lösungen:**
-1. **URL Format:** `https://app.url/mcp` (für streamable-http)
-2. **Transport:** Korrekt gewählt (streamable-http vs SSE)
-3. **CORS:** Server sendet bereits korrekte Headers
-4. **Browser Cache:** Hard Refresh (Ctrl+F5)
-
-### Problem: Context7 API Fehler
-
-**Symptom:** Tools returnen API-Fehler
-
-**Debugging:**
-1. **Netzwerk:** DigitalOcean erlaubt HTTPS outbound
-2. **Context7 Status:** Service erreichbar?
-3. **Library Namen:** Korrekte Schreibweise?
-
-## 🔧 Performance Optimierung
-
-### DigitalOcean Instance Size
-
-```yaml
-# app.yaml - für höhere Performance
-services:
-  - name: mcp-server
-    instance_size_slug: basic-xs  # statt basic-xxs
-```
-
-### Context7 Timeouts
-
-```python
-# app/main.py - längere Timeouts
-context7.timeout = 60.0  # statt 30.0
-```
-
-## 📊 Monitoring
-
-### DigitalOcean Metrics
-
-Dashboard → Apps → Deine App → **"Insights"**:
-- Response Times
-- HTTP Request Count  
-- Memory/CPU Usage
-- Error Rates
-
-### Custom Logging
+### 3. Railway Deployment
 
 ```bash
-# DigitalOcean Logs anschauen
-doctl apps logs <app-id> --type=build    # Build Logs
-doctl apps logs <app-id> --type=deploy   # Deploy Logs  
-doctl apps logs <app-id> --type=run      # Runtime Logs
+# Railway CLI installieren
+npm install -g @railway/cli
+
+# Login
+railway login
+
+# Neues Projekt erstellen
+railway init
+
+# Deployen
+railway up
 ```
 
-## 🚀 Nächste Schritte
+Oder über das Railway Dashboard:
+1. Gehe zu https://railway.app
+2. "New Project" → "Deploy from GitHub repo"
+3. Wähle dein Repository
+4. Railway deployed automatisch!
 
-1. **Weitere Tools:** Dekoriere Funktionen mit `@mcp.tool()`
-2. **Authentication:** FastMCP 2.2+ OAuth Support
-3. **Caching:** Redis für Context7 Responses
-4. **Monitoring:** Sentry/DataDog Integration
+### 4. Railway URL erhalten
 
-## 📖 Referenzen
+Nach dem Deployment:
+```bash
+railway domain
+```
 
-- [FastMCP Dokumentation](https://github.com/jlowin/fastmcp)
-- [FastAPI Dokumentation](https://fastapi.tiangolo.com/)
-- [Context7 API](https://context7.dev/)
-- [DigitalOcean Apps](https://docs.digitalocean.com/products/app-platform/)
-- [MCP Protokoll](https://modelcontextprotocol.io/)
+## MCP Inspector mit Railway
 
----
+```bash
+# Ersetze YOUR_APP mit deiner Railway URL
+npx @modelcontextprotocol/inspector https://YOUR_APP.railway.app/mcp
+```
 
-🎉 **Ready to Deploy!** Dein optimierter Context7 MCP Server läuft stabil auf DigitalOcean! 
+## Projekt Struktur
+
+```
+simple-mcp-server/
+├── server.py          # MCP Server Logik
+├── web.py            # Web Runner für HTTP/SSE
+├── requirements.txt  # Python Dependencies
+├── railway.json      # Railway Config
+└── README.md        # Diese Datei
+```
+
+## Troubleshooting
+
+**Problem: MCP Inspector kann nicht verbinden**
+- Stelle sicher, dass der Server läuft (`python web.py`)
+- Verwende die richtige URL (mit `/mcp` am Ende)
+- Prüfe die Konsole für Fehler
+
+**Problem: Railway Deployment fehlgeschlagen**
+- Check die Build Logs in Railway
+- Stelle sicher, dass alle Files committed sind
+- Python Version sollte 3.9+ sein
+
+## Lizenz
+
+MIT 
