@@ -6,19 +6,10 @@ from starlette.responses import PlainTextResponse
 from server import mcp                    # deine Tools
 
 # ①  Streamable HTTP –  KEIN path-Parameter → behält /mcp
-# web.py  (nur die relevanten Zeilen geändert)
+http_app = mcp.http_app()                 # -> /mcp  (+ /mcp/{id})
 
-http_app = mcp.http_app()                           # behält internes /mcp
-sse_app  = mcp.http_app(transport="sse", path="/")  # internes Prefix entfernen!
-
-app = Starlette(
-    routes=[Route("/health", health, methods=["GET"])],
-    lifespan=http_app.lifespan
-)
-
-app.mount("/",     http_app)   # ergibt   /mcp
-app.mount("/sse",  sse_app)    # ergibt   /sse   (nicht /sse/sse)
-
+# ②  SSE –  internes Prefix entfernen mit path="/"
+sse_app  = mcp.http_app(transport="sse", path="/")  # -> /sse (nicht /sse/sse)
 
 async def health(_):                      # Health-Probe für Railway
     return PlainTextResponse("OK")
