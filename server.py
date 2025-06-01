@@ -1,61 +1,14 @@
-"""
-Simple MCP Server - Minimal example with SSE and streamable-http support
-"""
 from fastmcp import FastMCP
+import datetime
 
-# Create MCP server instance
-mcp = FastMCP(
-    name="simple-mcp-server",
-    instructions="A minimal MCP server example"
-)
+mcp = FastMCP(name="demo-mcp", instructions="Einfacher Test-Server")
 
-# Tool 1: Simple echo tool
 @mcp.tool()
-def echo(message: str) -> str:
-    """Echo back the message."""
-    return f"Echo: {message}"
+def echo(msg: str) -> str:
+    "Gibt die Nachricht unverändert zurück"
+    return msg
 
-# Tool 2: Calculator
 @mcp.tool()
-def calculate(expression: str) -> str:
-    """
-    Evaluate a mathematical expression.
-    
-    Examples:
-    - "2 + 2"
-    - "10 * 5"
-    - "100 / 4"
-    """
-    try:
-        # Only allow safe math operations
-        allowed_chars = "0123456789+-*/. ()"
-        if all(c in allowed_chars for c in expression):
-            result = eval(expression)
-            return f"Result: {result}"
-        else:
-            return "Error: Only basic math operations are allowed"
-    except Exception as e:
-        return f"Error: {str(e)}"
-
-# Tool 3: Get server info
-@mcp.tool()
-def server_info() -> str:
-    """Get information about this MCP server."""
-    return """
-Simple MCP Server v1.0
-======================
-Available tools:
-- echo: Echo back a message
-- calculate: Evaluate math expressions
-- server_info: This information
-
-Supports:
-- SSE transport
-- Streamable HTTP transport
-"""
-
-# Main entry point
-if __name__ == "__main__":
-    # Run with default transport (stdio)
-    # For Railway, we'll use a separate runner file
-    mcp.run() 
+def clock() -> str:
+    "Aktuelle UTC-Zeit zurückgeben"
+    return datetime.datetime.utcnow().isoformat() + "Z" 

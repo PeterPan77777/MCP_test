@@ -1,60 +1,23 @@
-"""
-Web runner for Railway deployment - Fixed routing priority
-"""
-import os
-import uvicorn
-from server import mcp
+import os, uvicorn
 from starlette.applications import Starlette
-from starlette.routing import Mount, Route
 from starlette.responses import JSONResponse, PlainTextResponse
+from starlette.routing import Route
+from server import mcp
 
-# Get the MCP app (path="" to avoid double /mcp/mcp)
-mcp_app = mcp.http_app(path="")
+mcp_app = mcp.http_app()              # behält internes /mcp
+PORT = int(os.getenv("PORT", 8080))
 
-# Health check handler
-async def health_check(request):
+async def health(_): 
     return PlainTextResponse("OK")
 
-# Root handler
-async def root(request):
-    return JSONResponse({
-        "service": "Simple MCP Server",
-        "version": "1.0", 
-        "endpoints": {
-            "health": "GET /health",
-            "mcp": "POST /mcp - MCP JSON-RPC",
-            "mcp_sse": "GET /mcp - SSE stream",
-            "delete": "DELETE /mcp - End session"
-        },
-        "status": "healthy",
-        "note": "FIXED: Mount under /mcp to avoid route priority issues"
-    })
-
-# Create main app with correct route priority!
 app = Starlette(
     routes=[
-        Route("/health", health_check, methods=["GET"]),  # Health check FIRST
-        Route("/", root, methods=["GET"]),                # Root info
-        Mount("/mcp", app=mcp_app),                       # MCP app unter /mcp (nicht /)
+        # Health-Check zuerst, damit Railway ihn findet
+        Route("/health", health, methods=["GET"]),
     ],
-    lifespan=mcp_app.lifespan  # Critical for session manager
+    lifespan=mcp_app.lifespan          # ⚠️ wichtig
 )
+app.mount("/", mcp_app)                # /mcp liegt jetzt top-level
 
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 8080))
-    
-    print(f"🚀 Starting MCP Server on port {port}")
-    print(f"📍 Endpoints:")
-    print(f"   - GET / → Service info")
-    print(f"   - GET /health → Health check (for Railway)")
-    print(f"   - POST /mcp → MCP JSON-RPC")
-    print(f"   - GET /mcp → SSE Stream") 
-    print(f"   - DELETE /mcp → End session")
-    print(f"🔧 FIXED: Mount under /mcp, not / (route priority)")
-    
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=port,
-        log_level="info"
-    ) 
+    uvicorn.run(app, host="0.0.0.0", port=PORT, log_level="info") 
