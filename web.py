@@ -1,5 +1,5 @@
 """
-Web runner for Railway deployment - Fixed with proper lifespan
+Web runner for Railway deployment - Fixed routing priority
 """
 import os
 import uvicorn
@@ -8,52 +8,49 @@ from starlette.applications import Starlette
 from starlette.routing import Mount, Route
 from starlette.responses import JSONResponse, PlainTextResponse
 
-# Get the MCP app (Streamable HTTP default)
-mcp_app = mcp.http_app()
+# Get the MCP app (path="" to avoid double /mcp/mcp)
+mcp_app = mcp.http_app(path="")
 
 # Health check handler
 async def health_check(request):
     return PlainTextResponse("OK")
 
-# Meta info handler
-async def meta(request):
+# Root handler
+async def root(request):
     return JSONResponse({
         "service": "Simple MCP Server",
         "version": "1.0", 
         "endpoints": {
-            "mcp_post": "POST /mcp - Start MCP session",
-            "mcp_get": "GET /mcp - SSE stream",
             "health": "GET /health",
+            "mcp": "POST /mcp - MCP JSON-RPC",
+            "mcp_sse": "GET /mcp - SSE stream",
             "delete": "DELETE /mcp - End session"
         },
-        "note": "FIXED: Added lifespan=mcp_app.lifespan",
-        "usage": {
-            "test_post": "curl -X POST -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"initialize\",\"id\":1}' /mcp",
-            "test_sse": "curl /mcp"
-        }
+        "status": "healthy",
+        "note": "FIXED: Mount under /mcp to avoid route priority issues"
     })
 
-# Create main app with CRITICAL lifespan parameter!
+# Create main app with correct route priority!
 app = Starlette(
     routes=[
-        Mount("/", app=mcp_app),  # MCP app at root - provides /mcp endpoint
-        Route("/health", health_check, methods=["GET"]),  # Health check
-        Route("/meta", meta, methods=["GET"]),  # Meta info
+        Route("/health", health_check, methods=["GET"]),  # Health check FIRST
+        Route("/", root, methods=["GET"]),                # Root info
+        Mount("/mcp", app=mcp_app),                       # MCP app unter /mcp (nicht /)
     ],
-    lifespan=mcp_app.lifespan  # ⚠️ OHNE DIES: 404 auf alle /mcp Routen!
+    lifespan=mcp_app.lifespan  # Critical for session manager
 )
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8080))
     
-    print(f"🚀 Starting MCP Server with proper lifespan on port {port}")
+    print(f"🚀 Starting MCP Server on port {port}")
     print(f"📍 Endpoints:")
+    print(f"   - GET / → Service info")
+    print(f"   - GET /health → Health check (for Railway)")
     print(f"   - POST /mcp → MCP JSON-RPC")
     print(f"   - GET /mcp → SSE Stream") 
     print(f"   - DELETE /mcp → End session")
-    print(f"   - GET /health → Health check")
-    print(f"   - GET /meta → This info")
-    print(f"🔧 CRITICAL: lifespan=mcp_app.lifespan added!")
+    print(f"🔧 FIXED: Mount under /mcp, not / (route priority)")
     
     uvicorn.run(
         app,
