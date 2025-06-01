@@ -8,7 +8,6 @@ from engineering_mcp.registry import (
     discover_engineering_tools,
     get_tool_details as get_tool_details_from_registry
 )
-import json
 
 # MCP Server mit ausführlichen Instructions für LLMs
 mcp = FastMCP(
@@ -26,7 +25,6 @@ für exakte mathematische Berechnungen.
 2️⃣ list_engineering_tools(category="...") - Listet alle Tools einer Kategorie auf
 3️⃣ get_tool_details(tool_name="...") - Beziehe Detaillierte Tool-Info, wie Du dieses Tool genau benutzten musst.
 4️⃣ calculate_engineering(tool_name="...", parameters={...}) - Tool ausführen
-   ODER execute_engineering_tool(request={...}) - Alternative mit einem Parameter
 
 ⚙️ KERNKONZEPT - Symbolische Variablen-Auflösung:
 - Jedes Tool implementiert EINE Formel mit mehreren Variablen
@@ -43,44 +41,15 @@ für exakte mathematische Berechnungen.
 - Nutze get_tool_details() wenn Parameter unklar sind
 - Alle physikalischen Werte müssen positiv sein
 - Achte auf Einheiten (werden in Tool-Details angegeben)
-- Parameter müssen als Dictionary übergeben werden: {"variable": wert}
 
-🔍 BEISPIEL-WORKFLOWS:
-
-1. Kesselformel-Berechnung:
-   categories = get_available_categories()
-   tools = list_engineering_tools(category="pressure")
-   details = get_tool_details(tool_name="solve_kesselformel")  
-   result = calculate_engineering(
+🔍 BEISPIEL-WORKFLOW:
+1. categories = get_available_categories()
+2. tools = list_engineering_tools(category="pressure")
+3. details = get_tool_details(tool_name="solve_kesselformel")  
+4. result = calculate_engineering(
      tool_name="solve_kesselformel",
      parameters={"p": 10, "d": 100, "sigma": 160}
    )
-
-2. Kreisflächen-Berechnung:
-   tools = list_engineering_tools(category="geometry")
-   # Fläche aus Radius berechnen:
-   result = calculate_engineering(
-     tool_name="solve_circle_area",
-     parameters={"radius": 10}
-   )
-   # ODER mit execute_engineering_tool:
-   result = execute_engineering_tool(
-     request={
-       "tool_name": "solve_circle_area",
-       "parameters": {"radius": 10}
-     }
-   )
-
-⚠️ WICHTIG: Zwei Möglichkeiten zur Tool-Ausführung
-Option A - Zwei separate Parameter:
-  calculate_engineering(tool_name="...", parameters={...})
-  
-Option B - Ein Dictionary-Parameter:
-  execute_engineering_tool(request={"tool_name": "...", "parameters": {...}})
-
-⚠️ WICHTIG: Parameter-Format
-- RICHTIG: parameters={"radius": 10}
-- FALSCH: parameters="radius=10" oder parameters=[10]
 """
 )
 
@@ -88,30 +57,6 @@ Option B - Ein Dictionary-Parameter:
 def clock() -> str:
     "Aktuelle UTC-Zeit zurückgeben"
     return datetime.datetime.utcnow().isoformat() + "Z"
-
-@mcp.tool(
-    name="debug_echo",
-    description="Debug-Tool: Gibt empfangene Parameter unverändert zurück zur Schema-Analyse"
-)
-def debug_echo(**kwargs) -> Dict:
-    """
-    Debug-Tool um zu sehen, was n8n genau sendet.
-    Akzeptiert beliebige Parameter und gibt sie zurück.
-    """
-    print(f"\n🔍 DEBUG_ECHO CALLED")
-    print(f"Received kwargs: {kwargs}")
-    print(f"Kwargs type: {type(kwargs)}")
-    
-    # Detaillierte Analyse jedes Parameters
-    for key, value in kwargs.items():
-        print(f"  - {key}: {value} (type: {type(value)})")
-    
-    return {
-        "debug_info": "Echo successful",
-        "received_parameters": kwargs,
-        "parameter_count": len(kwargs),
-        "parameter_types": {k: str(type(v)) for k, v in kwargs.items()}
-    }
 
 # ===== Meta-Tools für mehrstufige Discovery =====
 
@@ -276,21 +221,12 @@ async def calculate_engineering(
     Raises:
         ValueError: Bei ungültigen Tools oder Parametern
     """
-    # Enhanced Logging für n8n Debugging
-    print(f"\n🔧 CALCULATE_ENGINEERING CALLED")
-    print(f"Tool: {tool_name}")
-    print(f"Parameters Type: {type(parameters)}")
-    print(f"Parameters: {json.dumps(parameters, indent=2) if isinstance(parameters, dict) else parameters}")
-    
     if ctx:
         await ctx.info(f"Führe Engineering-Berechnung aus: {tool_name}")
         await ctx.info(f"Parameter: {parameters}")
     
     try:
         result = await call_engineering_tool(tool_name, parameters)
-        
-        print(f"✅ Calculation successful for {tool_name}")
-        print(f"Result: {json.dumps(result, indent=2)}")
         
         if ctx:
             await ctx.info(f"Berechnung erfolgreich abgeschlossen")
@@ -304,137 +240,25 @@ async def calculate_engineering(
         
     except Exception as e:
         error_msg = f"Fehler bei Engineering-Berechnung '{tool_name}': {e}"
-        print(f"❌ ERROR: {error_msg}")
-        
         if ctx:
             await ctx.error(error_msg)
         
-        # Hilfreiche Fehlerinformationen
-        error_response = {
+        return {
             "tool_name": tool_name,
             "parameters": parameters,
             "error": str(e),
             "status": "error"
         }
-        
-        # Zusätzliche Hilfe bei bekannten Fehlern
-        if "genau" in str(e).lower() and "parameter" in str(e).lower():
-            error_response["hint"] = "Für symbolische Tools müssen genau n-1 von n Parametern angegeben werden"
-            error_response["help"] = "Nutze get_tool_details() um die erforderlichen Parameter zu sehen"
-        
-        return error_response
-
-@mcp.tool(
-    name="execute_engineering_tool",
-    description="Alternative Schnittstelle für Engineering-Tool-Ausführung mit einem einzigen Parameter-Objekt",
-    tags=["engineering", "execution", "gateway", "alternative"]
-)
-async def execute_engineering_tool(
-    request: Dict,
-    ctx: Context = None
-) -> Dict:
-    """
-    Alternative Gateway-Funktion, die ein einzelnes Dictionary mit tool_name und parameters akzeptiert.
-    
-    Args:
-        request: Dictionary mit 'tool_name' und 'parameters' Feldern
-        ctx: FastMCP Context für Logging
-        
-    Returns:
-        Dict: Berechnungsergebnis
-        
-    Example:
-        request = {
-            "tool_name": "solve_circle_area",
-            "parameters": {"radius": 10}
-        }
-    """
-    # Enhanced Logging für n8n Debugging
-    print(f"\n🔧 EXECUTE_ENGINEERING_TOOL CALLED")
-    print(f"Request Type: {type(request)}")
-    print(f"Request: {json.dumps(request, indent=2) if isinstance(request, dict) else request}")
-    
-    if ctx:
-        await ctx.info(f"Execute engineering tool mit request: {request}")
-    
-    # Validiere Request-Struktur
-    if not isinstance(request, dict):
-        return {
-            "error": "Request muss ein Dictionary sein",
-            "received_type": str(type(request)),
-            "expected_format": '{"tool_name": "...", "parameters": {...}}',
-            "status": "error"
-        }
-    
-    if "tool_name" not in request:
-        return {
-            "error": "Feld 'tool_name' fehlt im Request",
-            "received": request,
-            "expected_format": '{"tool_name": "...", "parameters": {...}}',
-            "status": "error"
-        }
-    
-    if "parameters" not in request:
-        return {
-            "error": "Feld 'parameters' fehlt im Request",
-            "received": request,
-            "expected_format": '{"tool_name": "...", "parameters": {...}}',
-            "status": "error"
-        }
-    
-    # Delegiere an die ursprüngliche Funktion
-    return await calculate_engineering(
-        tool_name=request["tool_name"],
-        parameters=request["parameters"],
-        ctx=ctx
-    )
 
 # Initialisierung beim Server-Start
 async def init_engineering_tools():
     """Lädt Engineering-Tools beim Server-Start"""
     tools_count = await discover_engineering_tools()
     print(f"✅ {tools_count} Engineering-Tools entdeckt")
-    print(f"✅ 5 Meta-Tools + 2 Utility-Tools (clock, debug_echo) bereit")
+    print(f"✅ 4 Meta-Tools + 1 Utility-Tool (clock) bereit")
     print(f"🎯 Mehrstufige Discovery aktiviert:")
     print(f"   1. get_available_categories")
     print(f"   2. list_engineering_tools")  
     print(f"   3. get_tool_details")
-    print(f"   4. calculate_engineering (2 Parameter)")
-    print(f"   5. execute_engineering_tool (1 Parameter)")
-    
-    # Erstelle direkte Tool-Wrapper für n8n
-    await create_direct_tool_wrappers()
-    
-    return tools_count
-
-# Direkte Tool-Wrapper für n8n Kompatibilität
-async def create_direct_tool_wrappers():
-    """Erstellt direkte Tool-Wrapper für bessere n8n-Kompatibilität"""
-    print(f"\n🔧 Erstelle direkte Tool-Wrapper für n8n...")
-    
-    # Beispiel: Direkter Wrapper für solve_circle_area
-    @mcp.tool(
-        name="solve_circle_area_direct",
-        description="Berechnet Kreisfläche oder Radius direkt. Gib entweder 'radius' oder 'area' an.",
-        tags=["geometry", "direct", "n8n"]
-    )
-    async def solve_circle_area_direct(
-        radius: Optional[float] = None,
-        area: Optional[float] = None,
-        ctx: Context = None
-    ) -> Dict:
-        """Direkter Wrapper für solve_circle_area - n8n-kompatibel"""
-        print(f"\n📐 SOLVE_CIRCLE_AREA_DIRECT CALLED")
-        print(f"Radius: {radius}, Area: {area}")
-        
-        # Erstelle parameters Dict
-        parameters = {}
-        if radius is not None:
-            parameters["radius"] = radius
-        if area is not None:
-            parameters["area"] = area
-            
-        # Rufe das eigentliche Tool auf
-        return await call_engineering_tool("solve_circle_area", parameters)
-    
-    print(f"✅ Direkte Wrapper erstellt") 
+    print(f"   4. calculate_engineering")
+    return tools_count 
