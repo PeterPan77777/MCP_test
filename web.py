@@ -24,7 +24,9 @@ app.router.redirect_slashes = False                     # root-Router
 
 # 5️⃣  *Ein* Mount je Transport – mit korrektem Präfix
 app.mount("/mcp", http_app)                             # ergibt   /mcp
-app.mount("/sse", sse_app)                              # ergibt   /sse
+app.mount("/sse", sse_app)
+app.mount("/mcp/", http_app)                             # ergibt   /mcp
+app.mount("/sse/", sse_app)                              # ergibt   /sse
 
 # 🔍 DEBUG: Routen unmittelbar nach dem Mount ausgeben
 print("=== DEBUG: Registrierte Routen ===")
