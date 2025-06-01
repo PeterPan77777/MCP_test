@@ -1,28 +1,33 @@
-# web.py  – 100 % kompatibel zu Inspector, /mcp & /sse
+# web.py  – funktioniert mit Streamable HTTP unter /mcp und SSE unter /sse
 import os, uvicorn
 from starlette.applications import Starlette
-from starlette.routing import Route, Mount
 from starlette.responses import PlainTextResponse
-from server import mcp                    # deine Tools
+from starlette.routing import Route, Router
+from server import mcp        # deine Tools
 
-# ①  Streamable HTTP –  KEIN path-Parameter → behält /mcp
-http_app = mcp.http_app()                 # -> /mcp  (+ /mcp/{id})
+PORT = int(os.getenv("PORT", 8080))
 
-# ②  SSE –  internes Prefix entfernen mit path="/"
-sse_app  = mcp.http_app(transport="sse", path="/")  # -> /sse (nicht /sse/sse)
+# 1) Sub-Apps OHNE internes Prefix
+http_app = mcp.http_app(path="/")                 # Streamable-HTTP
+sse_app  = mcp.http_app(transport="sse", path="/")# SSE
 
-async def health(_):                      # Health-Probe für Railway
+# 2) Health-Route
+async def health(_): 
     return PlainTextResponse("OK")
 
+# 3) Eigenen Router anlegen, Redirects abschalten
+router = Router(redirect_slashes=False)
+router.mount("/mcp", http_app)                    # /mcp
+router.mount("/sse", sse_app)                     # /sse
+
+# 4) Haupt-App: Health zuerst, dann Mount aller Sub-Routen
 app = Starlette(
     routes=[
-        Route("/health", health, methods=["GET"]),   # immer zuerst!
-        Mount("/", http_app),                        # enthält /mcp …
-        Mount("/sse", sse_app),                      # … und /sse getrennt
+        Route("/health", health, methods=["GET"]),
+        router                                    # alle /mcp & /sse Endpunkte
     ],
-    lifespan=http_app.lifespan                       # wichtig für Routen-Init
+    lifespan=http_app.lifespan
 )
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0",
-                port=int(os.getenv("PORT", 8080)))
+    uvicorn.run(app, host="0.0.0.0", port=PORT)
