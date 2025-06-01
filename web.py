@@ -10,8 +10,8 @@ http_app = mcp.http_app(path="/")                        # registriert "/"
 sse_app  = mcp.http_app(transport="sse", path="/")       # registriert "/"
 
 # 2️⃣  Redirect-Schalter im Kinder-Router
-http_app.router.redirect_slashes = False
-sse_app.router.redirect_slashes  = False
+http_app.router.redirect_slashes = True
+sse_app.router.redirect_slashes  = True
 
 # 3️⃣  Health-Route
 async def health(_): 
