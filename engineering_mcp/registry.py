@@ -180,16 +180,30 @@ def extract_solvable_variables(description: str) -> List[str]:
     """
     Extrahiert lösbare Variablen aus Tool-Beschreibung.
     
+    Unterstützt verschiedene Formate:
+    - "Lösbare Variablen: [var1, var2, var3]"
+    - "Lösbare Variablen: var1, var2, var3"
+    
     Args:
         description: Tool-Beschreibung
         
     Returns:
         List[str]: Liste der lösbaren Variablen
     """
+    # Format 1: Mit eckigen Klammern [var1, var2, var3]
     match = re.search(r'Lösbare Variablen:\s*\[([^\]]+)\]', description)
     if match:
         vars_str = match.group(1)
         return [var.strip() for var in vars_str.split(',')]
+    
+    # Format 2: Ohne eckige Klammern, aber mit Kommas var1, var2, var3
+    match = re.search(r'Lösbare Variablen:\s*([^\n\r]+)', description)
+    if match:
+        vars_line = match.group(1).strip()
+        # Entferne mögliche nachgestellte Texte nach dem ersten Punkt oder Absatz
+        vars_line = vars_line.split('.')[0].split('\n')[0].strip()
+        return [var.strip() for var in vars_line.split(',')]
+    
     return []
 
 
@@ -302,5 +316,44 @@ async def get_tool_details(tool_name: str) -> Dict:
             details['usage_hints'].append(
                 f"Um {var} zu berechnen: Gib {', '.join(other_vars)} an"
             )
+    
+    # ⭐ PARAMETER-FORMAT-HINWEIS hinzufügen
+    details['parameter_format'] = {
+        "wichtig": "🎯 Alle Parameter benötigen EINHEITEN! Format: 'Wert Einheit'",
+        "korrekte_beispiele": [
+            '"100 bar"', '"50 mm"', '"200 MPa"', '"5 cm"', '"25.5 cm²"', '"523 cm³"'
+        ],
+        "falsche_beispiele": [
+            "100 (ohne Einheit)", "50.0 (ohne Einheit)", "null (leer)"
+        ],
+        "tolerante_eingabe": "Der Server kann verschiedene Formate reparieren, aber korrekte JSON-Syntax ist am sichersten"
+    }
+    
+    # Generiere spezifisches Beispiel basierend auf lösbaren Variablen
+    if details['solvable_variables'] and len(details['solvable_variables']) >= 2:
+        example_params = {}
+        example_units = {
+            'pressure': '"100 bar"',
+            'wall_thickness': '"50 mm"', 
+            'diameter': '"500 mm"',
+            'allowable_stress': '"200 MPa"',
+            'radius': '"25 mm"',
+            'area': '"25.5 cm²"',
+            'volume': '"523 cm³"',
+            'height': '"10 cm"',
+            'width': '"5 cm"',
+            'length': '"10 cm"',
+            'side_a': '"8 cm"',
+            'side_c': '"12 cm"',
+            'base': '"6 cm"'
+        }
+        
+        # Verwende die ersten n-1 Variablen für das Beispiel
+        example_vars = details['solvable_variables'][:-1]
+        for var in example_vars:
+            # Finde passende Einheit oder verwende Fallback
+            example_params[var] = example_units.get(var, '"10 unit"')
+        
+        details['parameter_format']['korrekte_aufruf_syntax'] = f'call_tool(tool_name="{tool_name}", parameters={example_params})'
     
     return details 

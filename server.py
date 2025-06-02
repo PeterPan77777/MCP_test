@@ -92,10 +92,75 @@ def _repair_arguments(raw: Any) -> dict:
     - Einfache → doppelte Anführungszeichen  
     - Python-bool/None → JSON-bool/null
     - Versucht ast.literal_eval als Fallback
+    - ⭐ NEU: Erkennt und extrahiert aus n8n/Workflow-JSON-Strukturen
     """
+    # ===== SPEZIAL-BEHANDLUNG: n8n/WORKFLOW-JSON ERKENNUNG =====
+    if isinstance(raw, dict):
+        # Prüfe ob es sich um n8n-Workflow-JSON handelt
+        if "nodes" in raw and "connections" in raw and "meta" in raw:
+            print("🔧 n8n-Workflow-JSON erkannt - extrahiere Engineering-Parameter...")
+            
+            # Extrahiere System-Message aus erstem AI-Agent-Node
+            nodes = raw.get("nodes", [])
+            for node in nodes:
+                if node.get("type") == "@n8n/n8n-nodes-langchain.agent":
+                    options = node.get("parameters", {}).get("options", {})
+                    system_msg = options.get("systemMessage", "")
+                    
+                    # Durchsuche System-Message nach Engineering-Keywords
+                    if any(keyword in system_msg.lower() for keyword in ["calculation", "mcp", "tool", "engineering"]):
+                        print(f"📋 System-Message gefunden: {system_msg[:100]}...")
+                        
+                        # Versuche Parameter aus anderen Teilen der Struktur zu extrahieren
+                        # Fallback: Leere Parameter für manuelle Eingabe-Aufforderung
+                        return {
+                            "detected_format": "n8n_workflow",
+                            "extraction_hint": "n8n-Workflow erkannt - bitte Tool-Parameter separat angeben",
+                            "system_message": system_msg,
+                            "example_format": {
+                                "pressure": "100 bar",
+                                "wall_thickness": "50 mm", 
+                                "allowable_stress": "200 MPa"
+                            }
+                        }
+            
+            # Kein AI-Agent gefunden
+            return {
+                "detected_format": "n8n_workflow_without_agent",
+                "error": "n8n-Workflow ohne AI-Agent-Node gefunden",
+                "hint": "Bitte Engineering-Parameter im Format {'param': 'value'} angeben"
+            }
+        
+        # Prüfe ob es verschachtelte Engineering-Parameter gibt
+        if "parameters" in raw and isinstance(raw["parameters"], dict):
+            # Direkte Parameter-Extraktion
+            return raw["parameters"]
+        
+        # Durchsuche nach Engineering-relevanten Schlüsseln
+        engineering_keys = ["pressure", "wall_thickness", "diameter", "allowable_stress", 
+                          "radius", "area", "volume", "height", "width", "length", 
+                          "side_a", "side_c", "base"]
+        
+        found_params = {}
+        for key, value in raw.items():
+            if key.lower() in [k.lower() for k in engineering_keys]:
+                found_params[key] = value
+        
+        if found_params:
+            print(f"🔧 Engineering-Parameter in JSON gefunden: {list(found_params.keys())}")
+            return found_params
+    
     # Fall 1: String-Input → JSON parsen
     if isinstance(raw, str):
         raw = _strip_codefence(raw)
+        
+        # ⭐ NEUE PRÜFUNG: n8n-ähnliche JSON-String
+        if "nodes" in raw and "connections" in raw:
+            try:
+                parsed_json = json.loads(raw)
+                return _repair_arguments(parsed_json)  # Rekursiver Aufruf für n8n-Behandlung
+            except json.JSONDecodeError:
+                pass
         
         # Erweiterte Python-dict → JSON Reparatur
         py_like = raw
@@ -385,7 +450,24 @@ async def get_tool_details(
 
 @mcp.tool(
     name="call_tool",
-    description="🔧 FEHLERTOLERANTE Tool-Ausführung - Führt Engineering-Tools aus und repariert automatisch LLM-Syntax-Fehler",
+    description="""🔧 ULTRA-TOLERANTE Tool-Ausführung - Führt Engineering-Tools aus und repariert automatisch alle LLM-Syntax-Fehler
+
+⚡ AKZEPTIERTE PARAMETER-FORMATE:
+1. Standard JSON: {"pressure": "100 bar", "wall_thickness": "50 mm"}
+2. Python-Dict: {pressure="100 bar", wall_thickness="50 mm"}  
+3. String-Parameter: 'pressure="100 bar", wall_thickness="50 mm"'
+4. Code-Fence: ```json {"pressure": "100 bar"} ```
+5. n8n-Workflow-JSON (automatische Extraktion)
+6. Verschachtelte JSON-Strukturen (automatische Suche)
+
+✅ KORREKTE BEISPIELE:
+• call_tool(tool_name="solve_kesselformel", parameters={"pressure": "100 bar", "wall_thickness": "50 mm", "allowable_stress": "200 MPa"})
+• call_tool(tool_name="solve_circle_area", parameters={"radius": "25 mm"})
+• call_tool(tool_name="solve_rechteck", parameters={"length": "10 cm", "width": "5 cm"})
+
+🎯 WICHTIG: Alle Engineering-Parameter benötigen EINHEITEN!
+• ✅ "100 bar" ✅ "50 mm" ✅ "200 MPa" 
+• ❌ 100 ❌ 50 ❌ 200 (ohne Einheiten)""",
     tags=["meta"]
 )
 async def call_tool(
@@ -443,6 +525,23 @@ async def call_tool(
                 
         except ValidationError as repair_error:
             # ===== LAYER 3: KONTROLLIERTE FEHLANTWORT =====
+            
+            # Spezial-Behandlung für n8n-Workflow-JSON-Erkennungen
+            if isinstance(parameters, dict) and parameters.get("detected_format") == "n8n_workflow":
+                return {
+                    "info": "n8n-Workflow-JSON erkannt",
+                    "detected_format": "n8n_workflow", 
+                    "system_message": parameters.get("system_message", ""),
+                    "next_step": "Bitte geben Sie Engineering-Parameter separat an",
+                    "format_examples": [
+                        '{"pressure": "100 bar", "wall_thickness": "50 mm", "allowable_stress": "200 MPa"}',
+                        '{"radius": "25 mm"}',
+                        '{"length": "10 cm", "width": "5 cm"}'
+                    ],
+                    "wichtig": "Alle Parameter benötigen Einheiten (z.B. 'mm', 'bar', 'MPa')",
+                    "status": "workflow_detected"
+                }
+            
             return {
                 "error": "Schema-Validierung fehlgeschlagen",
                 "original_error": str(e),
@@ -451,9 +550,13 @@ async def call_tool(
                 "received_parameters": str(parameters)[:200],
                 "expected_format": {
                     "tool_name": "string (z.B. 'solve_kesselformel')",
-                    "parameters": "dict (z.B. {'p': 10, 'd': 100, 'sigma': 160})"
+                    "parameters": "dict (z.B. {'pressure': '100 bar', 'wall_thickness': '50 mm'})"
                 },
-                "hint": "Verwende format: call_tool(tool_name='...', parameters={'key': value})",
+                "format_examples": [
+                    'call_tool(tool_name="solve_kesselformel", parameters={"pressure": "100 bar", "wall_thickness": "50 mm", "allowable_stress": "200 MPa"})',
+                    'call_tool(tool_name="solve_circle_area", parameters={"radius": "25 mm"})'
+                ],
+                "hint": "Alle Engineering-Parameter benötigen EINHEITEN! Format: 'Wert Einheit' (z.B. '100 bar')",
                 "status": "error"
             }
     

@@ -1,119 +1,182 @@
+#!/usr/bin/env python3
 """
 [Tool Name] - [Kurzbeschreibung für list_engineering_tools]
+
+Berechnet [BESCHREIBUNG] mit automatischer Einheiten-Konvertierung.
+Alle Eingaben MÜSSEN mit Einheiten angegeben werden.
 
 Löst die Formel [FORMEL] nach verschiedenen Variablen auf.
 Lösbare Variablen: [var1, var2, var3]
 
 [Detaillierte Beschreibung der Formel, Anwendungsbereich, physikalische Bedeutung]
-
-Parameter:
-- var1: [Beschreibung] [Einheit]
-- var2: [Beschreibung] [Einheit]
-- var3: [Beschreibung] [Einheit]
-
-Anwendungsbereich: [Wann wird diese Formel verwendet]
 """
 
 from typing import Dict, Optional
-from fastmcp import Context
-from sympy import symbols, Eq, solve, N
-from pydantic import BaseModel, field_validator
+import sys
+import os
 
+# Import des Einheiten-Utilities
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from units_utils import validate_inputs_have_units, optimize_output_unit, UnitsError, ureg
 
-class ToolNameInput(BaseModel):
-    """Input-Validierung für [Tool Name] Parameter"""
-    var1: Optional[float] = None    # [Beschreibung] [Einheit]
-    var2: Optional[float] = None    # [Beschreibung] [Einheit]
-    var3: Optional[float] = None    # [Beschreibung] [Einheit]
-    
-    @field_validator('var1', 'var2', 'var3')
-    @classmethod
-    def must_be_positive(cls, v):
-        if v is not None and v <= 0:
-            raise ValueError("Alle Werte müssen positiv sein")
-        return v
-
-
-async def solve_tool_name(
-    var1: Optional[float] = None,
-    var2: Optional[float] = None,
-    var3: Optional[float] = None,
-    ctx: Context = None
+def solve_tool_name(
+    var1: Optional[str] = None,
+    var2: Optional[str] = None,
+    var3: Optional[str] = None
 ) -> Dict:
     """
-    Löst [FORMEL] symbolisch nach der unbekannten Variable.
+    Berechnet [BESCHREIBUNG] mit Einheiten-Support.
+    
+    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
+    Format: "Wert Einheit" (z.B. "5.2 mm", "10 cm", "25.5 cm²")
+    
+    [FORMEL BESCHREIBUNG]
+    
+    Lösbare Variablen: var1, var2, var3
     
     Args:
-        var1: [Beschreibung] [Einheit]
-        var2: [Beschreibung] [Einheit]
-        var3: [Beschreibung] [Einheit]
-        ctx: FastMCP Context für Logging
+        var1: [Beschreibung] mit Einheit (z.B. "5.2 mm")
+        var2: [Beschreibung] mit Einheit (z.B. "10.4 cm") 
+        var3: [Beschreibung] mit Einheit (z.B. "25.5 cm²")
         
     Returns:
-        Dict: Berechnungsergebnis mit Lösung und Metadaten
+        Dict mit Ergebnissen in optimierten Einheiten
+        
+    Raises:
+        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
     """
-    # 1. Context-Logging
-    if ctx:
-        await ctx.info("Starte [Tool Name] Berechnung...")
-    
-    # 2. Input-Validierung
-    inputs = ToolNameInput(var1=var1, var2=var2, var3=var3)
-    provided_params = {k: v for k, v in inputs.model_dump().items() if v is not None}
-    solvable_vars = ['var1', 'var2', 'var3']
-    
-    # Anzahl der Parameter prüfen: n-1 von n müssen gegeben sein
-    if len(provided_params) != len(solvable_vars) - 1:
-        raise ValueError(f"Genau {len(solvable_vars) - 1} von {len(solvable_vars)} Parametern müssen angegeben werden")
-    
-    # 3. SymPy-Symbole definieren
-    var1_sym, var2_sym, var3_sym = symbols('var1 var2 var3', positive=True)
-    
-    # 4. Formel definieren
-    formula = Eq(var1_sym, var2_sym * var3_sym)  # Beispiel: var1 = var2 * var3
-    
-    # 5. Unbekannte Variable identifizieren
-    unknown_var = next(k for k in solvable_vars if k not in provided_params)
-    target_symbol = {
-        'var1': var1_sym,
-        'var2': var2_sym,
-        'var3': var3_sym
-    }[unknown_var]
-    
-    # 6. Symbolische Lösung
-    solution_expr = solve(formula, target_symbol)[0]
-    
-    # 7. Robuste Substitution mit Symbol-Mapping
-    symbol_mapping = {
-        var1_sym: provided_params.get('var1'),
-        var2_sym: provided_params.get('var2'),
-        var3_sym: provided_params.get('var3')
-    }
-    symbol_mapping = {k: v for k, v in symbol_mapping.items() if v is not None}
-    
-    # 8. Numerische Auswertung
-    substituted_expr = solution_expr.subs(symbol_mapping)
-    result_value = float(N(substituted_expr))
-    
-    # 9. Einheit bestimmen (anpassen je nach Variablen)
-    unit_mapping = {
-        'var1': 'Einheit1',
-        'var2': 'Einheit2',
-        'var3': 'Einheit3'
-    }
-    unit = unit_mapping[unknown_var]
-    
-    # 10. Strukturierte Rückgabe
-    return {
-        "unknown_variable": unknown_var,
-        "result": result_value,
-        "unit": unit,
-        "formula": str(formula),
-        "solution_expression": str(solution_expr),
-        "input_parameters": provided_params,
-        "solvable_variables": solvable_vars,
-        "calculation_steps": f"[FORMEL] → {unknown_var} = {solution_expr}"
-    }
-
+    try:
+        # Zähle gegebene Parameter
+        given_params = [p for p in [var1, var2, var3] if p is not None]
+        
+        # n-1 von n Parametern müssen gegeben sein
+        required_count = 2  # Für 3 Variablen: 2 gegeben, 1 berechnet
+        if len(given_params) != required_count:
+            return {
+                "error": f"Genau {required_count} Parameter müssen gegeben sein (einer wird berechnet)",
+                "given_count": len(given_params),
+                "example": "Beispiel: solve_tool_name(var1='5.2 mm', var2='10 cm')"
+            }
+        
+        # Validiere Einheiten und konvertiere zu SI
+        try:
+            params = validate_inputs_have_units(
+                var1=var1, 
+                var2=var2, 
+                var3=var3
+            )
+        except UnitsError as e:
+            return {
+                "error": "Einheiten-Fehler",
+                "message": str(e),
+                "hinweis": "Alle Parameter müssen mit Einheiten angegeben werden",
+                "beispiele": [
+                    "var1='5.2 mm'",
+                    "var2='10 cm'", 
+                    "var3='25.5 cm²'"
+                ]
+            }
+        
+        # Berechnung basierend auf gegebenen Parametern
+        if var1 is None:
+            # Berechne var1: [FORMEL]
+            var2_si = params['var2']['si_value']  # SI-Einheit
+            var3_si = params['var3']['si_value']  # SI-Einheit
+            
+            if var2_si <= 0 or var3_si <= 0:
+                return {"error": "Alle Werte müssen positiv sein"}
+            
+            # BEISPIEL: var1 = var2 * var3
+            var1_si = var2_si * var3_si  # SI-Einheit
+            
+            # Optimiere Ausgabe-Einheit
+            var1_quantity = var1_si * ureg.meter  # ANPASSEN: richtige SI-Einheit
+            var1_optimized = optimize_output_unit(var1_quantity, params['var2']['original_unit'])
+            
+            return {
+                "gegebene_werte": {
+                    "var2": var2,
+                    "var3": var3
+                },
+                "ergebnis": {
+                    "var1": f"{var1_optimized.magnitude:.6g} {var1_optimized.units}"
+                },
+                "formel": "[FORMEL]",
+                "si_werte": {
+                    "var1_si": f"{var1_si:.6g} [SI-Einheit]",
+                    "var2_si": f"{var2_si:.6g} [SI-Einheit]",
+                    "var3_si": f"{var3_si:.6g} [SI-Einheit]"
+                }
+            }
+            
+        elif var2 is None:
+            # Berechne var2: [UMGESTELLTE FORMEL]
+            var1_si = params['var1']['si_value']
+            var3_si = params['var3']['si_value']
+            
+            if var1_si <= 0 or var3_si <= 0:
+                return {"error": "Alle Werte müssen positiv sein"}
+            
+            # BEISPIEL: var2 = var1 / var3
+            var2_si = var1_si / var3_si
+            
+            # Optimiere Ausgabe-Einheit
+            var2_quantity = var2_si * ureg.meter  # ANPASSEN
+            var2_optimized = optimize_output_unit(var2_quantity, params['var1']['original_unit'])
+            
+            return {
+                "gegebene_werte": {
+                    "var1": var1,
+                    "var3": var3
+                },
+                "ergebnis": {
+                    "var2": f"{var2_optimized.magnitude:.6g} {var2_optimized.units}"
+                },
+                "formel": "[UMGESTELLTE FORMEL]",
+                "si_werte": {
+                    "var1_si": f"{var1_si:.6g} [SI-Einheit]",
+                    "var2_si": f"{var2_si:.6g} [SI-Einheit]",
+                    "var3_si": f"{var3_si:.6g} [SI-Einheit]"
+                }
+            }
+            
+        elif var3 is None:
+            # Berechne var3: [UMGESTELLTE FORMEL]
+            var1_si = params['var1']['si_value']
+            var2_si = params['var2']['si_value']
+            
+            if var1_si <= 0 or var2_si <= 0:
+                return {"error": "Alle Werte müssen positiv sein"}
+            
+            # BEISPIEL: var3 = var1 / var2
+            var3_si = var1_si / var2_si
+            
+            # Optimiere Ausgabe-Einheit
+            var3_quantity = var3_si * ureg.meter  # ANPASSEN
+            var3_optimized = optimize_output_unit(var3_quantity, params['var1']['original_unit'])
+            
+            return {
+                "gegebene_werte": {
+                    "var1": var1,
+                    "var2": var2
+                },
+                "ergebnis": {
+                    "var3": f"{var3_optimized.magnitude:.6g} {var3_optimized.units}"
+                },
+                "formel": "[UMGESTELLTE FORMEL]",
+                "si_werte": {
+                    "var1_si": f"{var1_si:.6g} [SI-Einheit]",
+                    "var2_si": f"{var2_si:.6g} [SI-Einheit]",
+                    "var3_si": f"{var3_si:.6g} [SI-Einheit]"
+                }
+            }
+        
+    except Exception as e:
+        return {
+            "error": "Berechnungsfehler",
+            "message": str(e),
+            "hinweis": "Überprüfen Sie die Eingabe-Parameter und Einheiten"
+        }
 
 # Tool-Metadaten für Registry
 TOOL_METADATA = {
@@ -121,32 +184,46 @@ TOOL_METADATA = {
     "short_description": "[Kurze Beschreibung] - [Was das Tool macht]",
     "description": """Löst [FORMEL] nach verschiedenen Variablen auf. Lösbare Variablen: [var1, var2, var3]
 
-[Ausführliche Beschreibung der Formel und ihres Anwendungsbereichs]
+WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
+Format: "Wert Einheit" (z.B. "5.2 mm", "10 cm", "25.5 cm²")
+
+[GRUNDFORMEL]
 
 Parameter:
-- var1: [Detaillierte Beschreibung] [Einheit]
-- var2: [Detaillierte Beschreibung] [Einheit]  
-- var3: [Detaillierte Beschreibung] [Einheit]
+- var1: [Detaillierte Beschreibung] mit [Einheiten-Typ] (z.B. "5.2 mm", "2.5 cm")
+- var2: [Detaillierte Beschreibung] mit [Einheiten-Typ] (z.B. "10 mm", "5 cm") 
+- var3: [Detaillierte Beschreibung] mit [Einheiten-Typ] (z.B. "25.5 cm²", "0.1 m²")
 
 Anwendungsbereich: [Wann und wo wird diese Formel verwendet]
 Einschränkungen: [Falls vorhanden, z.B. nur für positive Werte]""",
-    "tags": ["elementar"],  # Wähle: ["meta"] | ["elementar"] | ["mechanik"]
+    "tags": ["elementar", "Fläche"],  # ["elementar", "Fläche"] | ["elementar", "Volumen"]
     "function": solve_tool_name,
     "examples": [
         {
-            "description": "Berechne var1 aus var2 und var3",
-            "input": {"var2": 10, "var3": 20},
-            "expected_output": {"unknown_variable": "var1", "result": 200, "unit": "Einheit1"}
+            "description": "Berechne var1 bei gegebenen var2 und var3",
+            "call": 'solve_tool_name(var2="10 mm", var3="5 cm")',
+            "result": "var1 in optimierter Einheit"
         },
         {
-            "description": "Berechne var2 aus var1 und var3",
-            "input": {"var1": 200, "var3": 20},
-            "expected_output": {"unknown_variable": "var2", "result": 10, "unit": "Einheit2"}
+            "description": "Berechne var2 bei gegebenen var1 und var3", 
+            "call": 'solve_tool_name(var1="50 cm²", var3="5 cm")',
+            "result": "var2 in optimierter Einheit"
         }
     ]
 }
 
-# Tag-Zuordnung:
-# ["meta"]      - Discovery und Workflow-Tools (nur für server.py meta-functions)
-# ["elementar"] - Grundlegende geometrische und mathematische Berechnungen  
-# ["mechanik"]  - Spezialisierte Formeln aus Mechanik und Maschinenbau 
+if __name__ == "__main__":
+    # Test-Beispiele
+    print("=== [Tool Name] Tests ===")
+    
+    # Test 1
+    result1 = solve_tool_name(var2="10 mm", var3="5 cm")
+    print(f"Test 1: {result1}")
+    
+    # Test 2
+    result2 = solve_tool_name(var1="50 cm²", var3="5 cm")
+    print(f"Test 2: {result2}")
+    
+    # Test 3: Fehler - keine Einheit
+    result3 = solve_tool_name(var1="50", var2="10 mm")
+    print(f"Test 3 - Keine Einheit: {result3}") 
