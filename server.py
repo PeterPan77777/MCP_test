@@ -460,6 +460,37 @@ async def get_tool_details(
 5. n8n-Workflow-JSON (automatische Extraktion)
 6. Verschachtelte JSON-Strukturen (automatische Suche)
 
+!!!! Immer beachten:
+
+Wenn du das tool: "call_tool" verwendest und Eingabeparameter definieren musst, halte Dich zwingend an folgende Regel:
+Definiere alle Eingabeparameter IMMER als Eigenschaft im Objekt "parameters".Jede Eigenschaft ist ein Key-Value-Pair.
+
+Du musst zwingend immer dieses Format für die Parameter verwenden:
+Beispiel:
+"query": 
+{
+"tool_name": 
+"solve_kesselformel",
+"parameters": 
+{
+"pressure": 
+"100 bar",
+"wall_thickness": 
+"50 mm",
+"allowable_stress": 
+"100 N/mm²"
+}
+
+verwende niemals dieses Format:
+Beispiel:
+"query": 
+{
+"tool_name": 
+"solve_kesselformel",
+"parameters": 
+"pressure="100 bar", wall_thickness="50 mm", allowable_stress="100 N/mm²""
+}
+
 ✅ KORREKTE BEISPIELE:
 • call_tool(tool_name="solve_kesselformel", parameters={"pressure": "100 bar", "wall_thickness": "50 mm", "allowable_stress": "200 MPa"})
 • call_tool(tool_name="solve_circle_area", parameters={"radius": "25 mm"})
