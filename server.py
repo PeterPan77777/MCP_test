@@ -8,9 +8,6 @@ from engineering_mcp.registry import (
     discover_engineering_tools,
     get_tool_details as get_tool_details_from_registry
 )
-# Import der Engineering-Tools für direkte Registrierung
-from tools.pressure.kesselformel import solve_kesselformel
-from tools.geometry.circle_area import solve_circle_area
 
 # MCP Server mit ausführlichen Instructions für LLMs
 mcp = FastMCP(
@@ -56,11 +53,6 @@ für exakte mathematische Berechnungen.
      tool_name="solve_kesselformel",
      parameters={"p": 10, "d": 100, "sigma": 160}
    )
-
-📊 DIREKT VERFÜGBARE TOOLS:
-Zusätzlich zu den Meta-Tools sind folgende Engineering-Tools direkt verfügbar:
-- solve_kesselformel: Kesselformel σ = p·d/(2·s) für Druckbehälter
-- solve_circle_area: Kreisfläche A = π·r² für geometrische Berechnungen
 """
 )
 
@@ -68,58 +60,6 @@ Zusätzlich zu den Meta-Tools sind folgende Engineering-Tools direkt verfügbar:
 def clock() -> str:
     "Aktuelle UTC-Zeit zurückgeben"
     return datetime.datetime.utcnow().isoformat() + "Z"
-
-# ===== Direkt verfügbare Engineering-Tools =====
-
-@mcp.tool(
-    name="solve_kesselformel",
-    description="Löst die Kesselformel σ = p·d/(2·s) nach verschiedenen Variablen auf. Lösbare Variablen: [sigma, p, d, s]. Druckbehälterberechnung für dünnwandige zylindrische Druckbehälter.",
-    tags=["pressure", "engineering", "symbolic", "vessels"]
-)
-async def kesselformel_direct(
-    p: Optional[float] = None,
-    d: Optional[float] = None,
-    s: Optional[float] = None,
-    sigma: Optional[float] = None,
-    ctx: Context = None
-) -> Dict:
-    """
-    Löst die Kesselformel σ = p·d/(2·s) symbolisch nach der unbekannten Variable.
-    
-    Args:
-        p: Innendruck [N/mm²]
-        d: Außendurchmesser [mm]  
-        s: Wanddicke [mm]
-        sigma: Zulässige Spannung [N/mm²]
-        ctx: FastMCP Context für Logging
-        
-    Returns:
-        Dict: Berechnungsergebnis mit Lösung und Metadaten
-    """
-    return await solve_kesselformel(p=p, d=d, s=s, sigma=sigma, ctx=ctx)
-
-@mcp.tool(
-    name="solve_circle_area", 
-    description="Löst die Kreisflächenformel A = π·r² nach verschiedenen Variablen auf. Lösbare Variablen: [area, radius]. Berechnung von Kreisfläche oder Radius.",
-    tags=["geometry", "engineering", "symbolic", "area"]
-)
-async def circle_area_direct(
-    area: Optional[float] = None,
-    radius: Optional[float] = None,
-    ctx: Context = None
-) -> Dict:
-    """
-    Löst die Kreisflächenformel A = π·r² symbolisch nach der unbekannten Variable.
-    
-    Args:
-        area: Kreisfläche [mm²]
-        radius: Radius [mm]
-        ctx: FastMCP Context für Logging
-        
-    Returns:
-        Dict: Berechnungsergebnis mit Lösung und Metadaten
-    """
-    return await solve_circle_area(area=area, radius=radius, ctx=ctx)
 
 # ===== Meta-Tools für mehrstufige Discovery =====
 
@@ -175,8 +115,7 @@ async def get_available_categories(
         "available_categories": list(categories_info.keys()),
         "category_details": categories_info,
         "total_categories": len(categories_info),
-        "usage_hint": "Verwende diese Kategorien mit list_engineering_tools(category='...')",
-        "note": "Zusätzlich sind solve_kesselformel und solve_circle_area direkt verfügbar"
+        "usage_hint": "Verwende diese Kategorien mit list_engineering_tools(category='...')"
     }
 
 @mcp.tool(
@@ -214,8 +153,7 @@ async def list_engineering_tools(
             "name": tool["name"],
             "short_description": tool.get("short_description", tool["description"].split(".")[0]),
             "solvable_variables": tool["solvable_variables"],
-            "tags": tool["tags"],
-            "note": "Auch direkt als MCP Tool verfügbar" if tool["name"] in ["solve_kesselformel", "solve_circle_area"] else ""
+            "tags": tool["tags"]
         })
     
     if ctx:
@@ -291,7 +229,8 @@ async def calculate_engineering(
         await ctx.info(f"Parameter: {parameters}")
     
     try:
-        result = await call_engineering_tool(tool_name, parameters)
+        # WICHTIG: ctx Parameter an call_engineering_tool übergeben
+        result = await call_engineering_tool(tool_name, parameters, ctx)
         
         if ctx:
             await ctx.info(f"Berechnung erfolgreich abgeschlossen")
@@ -320,8 +259,10 @@ async def init_engineering_tools():
     """Lädt Engineering-Tools beim Server-Start"""
     tools_count = await discover_engineering_tools()
     print(f"✅ {tools_count} Engineering-Tools entdeckt")
-    print(f"✅ 6 Meta-Tools + 2 direkte Engineering-Tools + 1 Utility-Tool (clock) bereit")
+    print(f"✅ 4 Meta-Tools + 1 Utility-Tool (clock) bereit")
     print(f"🎯 Mehrstufige Discovery aktiviert:")
-    print(f"   Meta: get_available_categories, list_engineering_tools, get_tool_details, calculate_engineering")
-    print(f"   Direkt: solve_kesselformel, solve_circle_area")
+    print(f"   1. get_available_categories")
+    print(f"   2. list_engineering_tools")  
+    print(f"   3. get_tool_details")
+    print(f"   4. calculate_engineering")
     return tools_count 

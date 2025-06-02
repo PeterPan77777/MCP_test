@@ -10,6 +10,7 @@ import pkgutil
 import importlib
 from typing import Dict, List, Optional, Any, Callable
 import asyncio
+import inspect
 
 
 # Globale Engineering-Tool-Registry (NICHT bei MCP registriert!)
@@ -145,13 +146,14 @@ def get_symbolic_tools_summary() -> Dict:
     return summary
 
 
-async def call_engineering_tool(tool_name: str, parameters: Dict) -> Any:
+async def call_engineering_tool(tool_name: str, parameters: Dict, ctx: Optional['Context'] = None) -> Any:
     """
     Führt ein Engineering-Tool aus der Registry aus.
     
     Args:
         tool_name: Name des Tools
         parameters: Tool-Parameter
+        ctx: Optional FastMCP Context für Logging
         
     Returns:
         Any: Tool-Ergebnis
@@ -169,11 +171,29 @@ async def call_engineering_tool(tool_name: str, parameters: Dict) -> Any:
     if not tool_func:
         raise ValueError(f"Tool {tool_name} hat keine ausführbare Funktion")
     
-    # Führe Tool aus (async wenn möglich)
-    if asyncio.iscoroutinefunction(tool_func):
-        return await tool_func(**parameters)
-    else:
-        return tool_func(**parameters)
+    # Context zu Parametern hinzufügen falls erforderlich
+    sig = inspect.signature(tool_func)
+    tool_params = dict(parameters)
+    
+    # Füge ctx hinzu wenn die Funktion es erwartet
+    if 'ctx' in sig.parameters:
+        tool_params['ctx'] = ctx
+    
+    try:
+        # Führe Tool aus (async wenn möglich)
+        if asyncio.iscoroutinefunction(tool_func):
+            return await tool_func(**tool_params)
+        else:
+            return tool_func(**tool_params)
+    except TypeError as e:
+        # Bessere Fehlermeldung bei Parameter-Problemen
+        expected_params = list(sig.parameters.keys())
+        provided_params = list(parameters.keys())
+        raise ValueError(
+            f"Parameter-Fehler für Tool '{tool_name}': {e}\n"
+            f"Erwartet: {expected_params}\n"
+            f"Gegeben: {provided_params}"
+        )
 
 
 def extract_solvable_variables(description: str) -> List[str]:
