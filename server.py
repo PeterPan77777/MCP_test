@@ -331,7 +331,7 @@ async def list_engineering_tools(
 
 @mcp.tool(
     name="get_tool_details",
-    description="Ruft detaillierte Informationen zu einem spezifischen Tool ab und schaltet es für die Ausführung frei",
+    description="Ruft detaillierte Informationen zu einem spezifischen Tool ab und schaltet es für die Ausführung frei. Verwende dieses Tool IMMER bevor Du das Tool call_tool aufrufst",
     tags=["meta"]
 )
 async def get_tool_details(
