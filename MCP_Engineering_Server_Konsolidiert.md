@@ -246,6 +246,78 @@ Der Server ist für Railway optimiert:
 - ✅ Tool-Ausführung über execute_tool funktioniert
 - ✅ Session State Management aktiv
 
+## ✨ NEU: Tolerante Tool-Ausführung
+
+### 🔧 Automatische LLM-Fehler-Reparatur
+
+Der Server ist jetzt tolerant gegenüber typischen LLM-Syntax-Fehlern bei Tool-Aufrufen:
+
+**Unterstützte LLM-Formate (alle werden automatisch repariert):**
+```python
+# ✅ Normale JSON-Parameter
+execute_tool("pressure.solve_kesselformel", {"p": 10, "d": 100, "sigma": 160})
+
+# 🔧 Python-dict-Syntax (= statt :) 
+execute_tool("pressure.solve_kesselformel", "{p=10, d=100, sigma=160}")
+
+# 🔧 Einfache Anführungszeichen
+execute_tool("pressure.solve_kesselformel", "{'p': 10, 'd': 100, 'sigma': 160}")
+
+# 🔧 Unquoted Keys
+execute_tool("pressure.solve_kesselformel", "{p: 10, d: 100, sigma: 160}")
+
+# 🔧 Code-Fence-wrapped JSON
+execute_tool("pressure.solve_kesselformel", "```json\n{\"p\": 10, \"d\": 100}\n```")
+
+# 🔧 JSON-String als Parameter
+execute_tool("pressure.solve_kesselformel", "{\"p\": 10, \"d\": 100, \"sigma\": 160}")
+```
+
+### 🏗️ 3-Layer-Architektur
+
+1. **Layer 1 - Strenge Validierung**: Normale Parameter → Direkte Verarbeitung
+2. **Layer 2 - Heuristische Reparatur**: Automatische Syntax-Reparatur bei Fehlern
+3. **Layer 3 - Kontrollierte Fehlantwort**: Hilfreiche Fehlermeldungen statt Abstürze
+
+### 🛠️ Reparatur-Strategien
+
+- **Code-Fence-Entfernung**: ` ```json {...} ``` ` → `{...}`
+- **Python-Assignment**: `{key=value}` → `{"key": "value"}`
+- **Unquoted Keys**: `{key: value}` → `{"key": "value"}`
+- **Quote-Normalisierung**: `'` → `"`
+- **Python-Literale**: `True/False/None` → `true/false/null`
+- **ast.literal_eval Fallback**: Für komplexe Python-dict-Literale
+- **Minimaler Dict-Parser**: Letzter Ausweg für ungewöhnliche Syntax
+
+### 📊 Test-Ergebnisse
+
+**7/9 Test-Szenarien erfolgreich repariert:**
+- ✅ Normale JSON-Parameter
+- ✅ Python-dict-Syntax (`{p=10, d=100}`)
+- ✅ Einfache Anführungszeichen (`{'key': 'value'}`)
+- ✅ Code-Fence-wrapped JSON
+- ✅ JSON-String-Parameter  
+- ✅ Unquoted Keys (`{key: value}`)
+- ❌ Komplett invalide Syntax → Kontrollierte Fehlantwort
+- ❌ Nicht-aktivierte Tools → Domain-Prüfung verhindert Ausführung
+
+**Vorteil**: LLMs können Tools mit ihrer "natürlichen" Syntax aufrufen, während der Server robust und protokoll-konform bleibt.
+
+## 🔄 Aktualisierter Workflow
+
+### Normaler Workflow (keine Reparatur):
+1. **LLM**: `execute_tool("pressure.solve_kesselformel", {"p": 10, "d": 100, "sigma": 160})`
+2. **Layer 1**: Pydantic-Validierung ✅
+3. **Server**: Tool-Ausführung  
+4. **Response**: Ergebnis + `"tolerant_parsing": true`
+
+### Reparatur-Workflow:
+1. **LLM**: `execute_tool("pressure.solve_kesselformel", "{p=10, d=100, sigma=160}")`
+2. **Layer 1**: Pydantic-Validierung ❌
+3. **Layer 2**: Automatische Reparatur → `{"p": 10, "d": 100, "sigma": 160}` ✅
+4. **Server**: Tool-Ausführung
+5. **Response**: Ergebnis + Reparatur-Metadaten
+
 ## Zusammenfassung
 
 Der MCP Engineering Server bietet:
