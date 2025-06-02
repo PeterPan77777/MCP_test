@@ -34,7 +34,7 @@ WICHTIGER WORKFLOW:
 1. Nutze IMMER zuerst 'get_available_categories' um verfügbare Kategorien zu sehen
 2. Dann 'list_engineering_tools' mit einer spezifischen Kategorie
 3. Optional 'get_tool_details' für ausführliche Tool-Dokumentation
-4. Schließlich 'calculate_engineering' zur Ausführung
+4. Schließlich 'call_tool' zur Ausführung
 
 Die Tools verwenden SymPy für symbolische Mathematik und können Formeln nach 
 beliebigen Variablen auflösen. Gib immer genau n-1 Parameter an, wenn ein Tool 
@@ -43,7 +43,7 @@ n lösbare Variablen hat.
 Beispiel: Kesselformel mit 4 Variablen [sigma, p, d, s] - gib 3 an, berechne die 4.
 
 🔧 FEHLERTOLERANTE TOOL-AUSFÜHRUNG:
-Das calculate_engineering Tool unterstützt tolerante Parameter-Eingabe:
+Das call_tool Tool unterstützt tolerante Parameter-Eingabe:
 - Normale JSON: {"param": value}
 - Python-dict-Syntax: {param=value, other=True}
 - Code-Fence-wrapped: ```json {"param": value} ```
@@ -56,7 +56,7 @@ def clock() -> str:
     "Aktuelle UTC-Zeit zurückgeben"
     return datetime.datetime.utcnow().isoformat() + "Z"
 
-# ===== TOLERANTE PARAMETER-REPARATUR (für calculate_engineering) =====
+# ===== TOLERANTE PARAMETER-REPARATUR (für call_tool) =====
 
 class CalculateToolSchema(BaseModel):
     """Schema für tolerante Tool-Ausführung"""
@@ -243,7 +243,7 @@ async def get_available_categories(
                 tag_definitions[tag]["tool_count"] += 1
     
     # Meta-Tools hinzufügen (aktuell verfügbare MCP-Tools)
-    meta_tools = ["get_available_categories", "list_engineering_tools", "get_tool_details", "calculate_engineering"]
+    meta_tools = ["get_available_categories", "list_engineering_tools", "get_tool_details", "call_tool"]
     tag_definitions["meta"]["tools"].extend(meta_tools)
     tag_definitions["meta"]["tool_count"] = len(meta_tools)
     
@@ -336,7 +336,7 @@ async def get_tool_details(
 ) -> Dict:
     """
     Liefert vollständige Dokumentation eines Engineering-Tools.
-    WICHTIG: Schaltet das Tool nach diesem Schritt für calculate_engineering frei!
+    WICHTIG: Schaltet das Tool nach diesem Schritt für call_tool frei!
     
     Args:
         tool_name: Name des Tools (z.B. "solve_kesselformel")
@@ -365,7 +365,7 @@ async def get_tool_details(
     try:
         details = await get_tool_details_from_registry(tool_name)
         
-        # ⚡ WHITELIST TOOL FÜR calculate_engineering
+        # ⚡ WHITELIST TOOL FÜR call_tool
         _session_state["whitelisted_tools"].add(tool_name)
         _session_state["viewed_functions"].add(tool_name)
         
@@ -373,7 +373,7 @@ async def get_tool_details(
         details.update({
             "whitelisted": True,
             "execution_unlocked": True,
-            "next_step": f"Verwende calculate_engineering(tool_name='{tool_name}', parameters={{...}}) zur Ausführung",
+            "next_step": f"Verwende call_tool(tool_name='{tool_name}', parameters={{...}}) zur Ausführung",
             "session_info": f"Tool ist jetzt für diese Session freigeschaltet"
         })
         
@@ -394,15 +394,15 @@ async def get_tool_details(
             "error": str(e),
             "available_tools": tool_names[:10],  # Erste 10 Tools
             "hint": "Nutze list_engineering_tools(tags=['...']) um verfügbare Tools zu sehen",
-            "workflow_reminder": "1️⃣ get_available_categories → 2️⃣ list_engineering_tools → 3️⃣ get_tool_details → 4️⃣ calculate_engineering"
+            "workflow_reminder": "1️⃣ get_available_categories → 2️⃣ list_engineering_tools → 3️⃣ get_tool_details → 4️⃣ call_tool"
         }
 
 @mcp.tool(
-    name="calculate_engineering",
+    name="call_tool",
     description="🔧 FEHLERTOLERANTE Tool-Ausführung - Führt Engineering-Tools aus und repariert automatisch LLM-Syntax-Fehler",
     tags=["meta"]
 )
-async def calculate_engineering(
+async def call_tool(
     tool_name: str,
     parameters: Union[Dict[str, Any], str],  # Erweitert: auch String akzeptieren
     ctx: Context = None
@@ -467,7 +467,7 @@ async def calculate_engineering(
                     "tool_name": "string (z.B. 'solve_kesselformel')",
                     "parameters": "dict (z.B. {'p': 10, 'd': 100, 'sigma': 160})"
                 },
-                "hint": "Verwende format: calculate_engineering(tool_name='...', parameters={'key': value})",
+                "hint": "Verwende format: call_tool(tool_name='...', parameters={'key': value})",
                 "status": "error"
             }
     
@@ -486,7 +486,7 @@ async def calculate_engineering(
                 "1️⃣ get_available_categories()",
                 "2️⃣ list_engineering_tools(tags=['...'])", 
                 "3️⃣ get_tool_details(tool_name='...')",
-                "4️⃣ calculate_engineering(tool_name='...', parameters={...})"
+                "4️⃣ call_tool(tool_name='...', parameters={...})"
             ],
             "status": "security_error"
         }
@@ -537,5 +537,5 @@ async def init_engineering_tools():
     print(f"   1. get_available_categories")
     print(f"   2. list_engineering_tools")  
     print(f"   3. get_tool_details")
-    print(f"   4. calculate_engineering")
+    print(f"   4. call_tool")
     return tools_count 
