@@ -108,7 +108,7 @@ Parameter:
 - r (radius): Radius [mm]
 
 Das Tool kann entweder die Fläche aus dem Radius oder den Radius aus der Fläche berechnen.""",
-    "tags": ["geometry", "engineering", "symbolic", "area"],
+    "tags": ["elementar"],
     "function": solve_circle_area,
     "examples": [
         {

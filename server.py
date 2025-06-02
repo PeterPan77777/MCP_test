@@ -188,81 +188,95 @@ def _repair_arguments(raw: Any) -> dict:
 
 @mcp.tool(
     name="get_available_categories",
-    description="Gibt alle verfügbaren Engineering-Tool-Kategorien zurück. IMMER ZUERST AUFRUFEN!",
-    tags=["discovery", "categories", "meta"]
+    description="Gibt alle verfügbaren Engineering-Tool-Tags mit Beschreibungen zurück. IMMER ZUERST AUFRUFEN!",
+    tags=["meta"]
 )
 async def get_available_categories(
     ctx: Context = None
 ) -> Dict:
     """
-    Listet alle verfügbaren Kategorien von Engineering-Tools auf.
+    Listet alle verfügbaren Tag-Kategorien von Engineering-Tools auf.
     
     Args:
         ctx: FastMCP Context für Logging
         
     Returns:
-        Dict: Kategorien mit Tool-Anzahl und Beschreibungen
+        Dict: Tag-Kategorien mit Tool-Anzahl und Beschreibungen
     """
     global _session_state
     
     if ctx:
-        await ctx.info("📋 Sammle verfügbare Tool-Kategorien...")
+        await ctx.info("📋 Sammle verfügbare Tool-Tags...")
+    
+    # Definiere Tag-Schema mit Beschreibungen
+    tag_definitions = {
+        "meta": {
+            "name": "meta",
+            "description": "Discovery und Workflow-Tools für Tool-Exploration",
+            "tools": [],
+            "tool_count": 0
+        },
+        "elementar": {
+            "name": "elementar", 
+            "description": "Grundlegende geometrische und mathematische Berechnungen",
+            "tools": [],
+            "tool_count": 0
+        },
+        "mechanik": {
+            "name": "mechanik",
+            "description": "Spezialisierte Formeln aus Mechanik und Maschinenbau", 
+            "tools": [],
+            "tool_count": 0
+        }
+    }
     
     # Hole Engineering-Tools aus Registry
     tool_info = get_tool_info_for_llm(include_engineering=True)
     
-    # Gruppiere nach Kategorien
-    categories_info = {}
-    
+    # Gruppiere Tools nach Tags
     for tool in tool_info:
-        category = tool.get("category", "unknown")
+        tool_tags = tool.get("tags", [])
         
-        if category not in categories_info:
-            categories_info[category] = {
-                "name": category,
-                "tools": [],
-                "tool_count": 0,
-                "description": ""
-            }
-        
-        categories_info[category]["tools"].append(tool["name"])
-        categories_info[category]["tool_count"] += 1
+        for tag in tool_tags:
+            if tag in tag_definitions:
+                tag_definitions[tag]["tools"].append(tool["name"])
+                tag_definitions[tag]["tool_count"] += 1
     
-    # Kategorie-Beschreibungen hinzufügen
-    from engineering_mcp.registry import get_category_description
-    for category, info in categories_info.items():
-        info["description"] = get_category_description(category)
+    # Meta-Tools hinzufügen (aktuell verfügbare MCP-Tools)
+    meta_tools = ["get_available_categories", "list_engineering_tools", "get_tool_details", "calculate_engineering"]
+    tag_definitions["meta"]["tools"].extend(meta_tools)
+    tag_definitions["meta"]["tool_count"] = len(meta_tools)
     
     # Session-Tracking
-    _session_state["viewed_categories"].update(categories_info.keys())
+    _session_state["viewed_categories"].update(tag_definitions.keys())
     
     if ctx:
-        await ctx.info(f"Gefunden: {len(categories_info)} Kategorien")
+        await ctx.info(f"Gefunden: {len(tag_definitions)} Tag-Kategorien")
     
     return {
         "step": 1,
-        "available_categories": list(categories_info.keys()),
-        "category_details": categories_info,
-        "total_categories": len(categories_info),
-        "usage_hint": "Verwende diese Kategorien mit list_engineering_tools(category='...')",
-        "next_step": "2️⃣ list_engineering_tools(category='...')",
+        "available_tags": list(tag_definitions.keys()),
+        "tag_categories": tag_definitions,
+        "total_categories": len(tag_definitions),
+        "usage_hint": "Verwende diese Tags mit list_engineering_tools(tags=['...'])",
+        "next_step": "2️⃣ list_engineering_tools(tags=['...'])",
         "workflow": "1️⃣ ✓ categories → 2️⃣ list_tools → 3️⃣ get_details → 4️⃣ calculate"
     }
 
 @mcp.tool(
     name="list_engineering_tools",
-    description="Listet alle Tools einer spezifischen Kategorie mit Kurzbeschreibungen auf",
-    tags=["discovery", "engineering", "meta"]
+    description="Listet alle Tools mit spezifischen Tags mit Kurzbeschreibungen auf",
+    tags=["meta"]
 )
 async def list_engineering_tools(
-    category: str,
+    tags: List[str],
     ctx: Context = None
 ) -> List[Dict]:
     """
-    Listet alle verfügbaren Engineering-Tools einer Kategorie mit Kurzbeschreibungen auf.
+    Listet alle verfügbaren Engineering-Tools mit spezifischen Tags auf.
     
     Args:
-        category: Kategorie-Filter (z.B. "pressure", "geometry") - PFLICHTPARAMETER
+        tags: Tag-Filter (z.B. ["elementar"], ["mechanik"] oder ["elementar", "mechanik"]) - PFLICHTPARAMETER
         ctx: FastMCP Context für Logging
         
     Returns:
@@ -271,13 +285,17 @@ async def list_engineering_tools(
     global _session_state
     
     if ctx:
-        await ctx.info(f"📂 Sammle Engineering-Tools für Kategorie: {category}")
+        await ctx.info(f"📂 Sammle Engineering-Tools für Tags: {tags}")
     
     # Hole Engineering-Tools aus separater Registry
     tool_info = get_tool_info_for_llm(include_engineering=True)
     
-    # Filter nach Kategorie
-    filtered_tools = [tool for tool in tool_info if category in tool.get("tags", []) or category == tool.get("category")]
+    # Filter nach Tags (Tool muss mindestens einen der angegebenen Tags haben)
+    filtered_tools = []
+    for tool in tool_info:
+        tool_tags = tool.get("tags", [])
+        if any(tag in tool_tags for tag in tags):
+            filtered_tools.append(tool)
     
     # Kompakte Darstellung für Discovery
     compact_tools = []
@@ -295,11 +313,11 @@ async def list_engineering_tools(
     _session_state["viewed_functions"].update(tool_names)
     
     if ctx:
-        await ctx.info(f"Gefunden: {len(compact_tools)} Tools in Kategorie {category}")
+        await ctx.info(f"Gefunden: {len(compact_tools)} Tools mit Tags {tags}")
     
     return {
         "step": 2,
-        "category": category,
+        "requested_tags": tags,
         "tools": compact_tools,
         "tool_count": len(compact_tools),
         "next_step": "3️⃣ get_tool_details(tool_name='...')",
@@ -310,7 +328,7 @@ async def list_engineering_tools(
 @mcp.tool(
     name="get_tool_details",
     description="Ruft detaillierte Informationen zu einem spezifischen Tool ab und schaltet es für die Ausführung frei",
-    tags=["discovery", "engineering", "documentation", "meta"]
+    tags=["meta"]
 )
 async def get_tool_details(
     tool_name: str,
@@ -375,14 +393,14 @@ async def get_tool_details(
         return {
             "error": str(e),
             "available_tools": tool_names[:10],  # Erste 10 Tools
-            "hint": "Nutze list_engineering_tools(category='...') um verfügbare Tools zu sehen",
+            "hint": "Nutze list_engineering_tools(tags=['...']) um verfügbare Tools zu sehen",
             "workflow_reminder": "1️⃣ get_available_categories → 2️⃣ list_engineering_tools → 3️⃣ get_tool_details → 4️⃣ calculate_engineering"
         }
 
 @mcp.tool(
     name="calculate_engineering",
     description="🔧 FEHLERTOLERANTE Tool-Ausführung - Führt Engineering-Tools aus und repariert automatisch LLM-Syntax-Fehler",
-    tags=["engineering", "execution", "gateway", "tolerant"]
+    tags=["meta"]
 )
 async def calculate_engineering(
     tool_name: str,
@@ -466,7 +484,7 @@ async def calculate_engineering(
             "whitelisted_tools": list(_session_state["whitelisted_tools"]),
             "required_workflow": [
                 "1️⃣ get_available_categories()",
-                "2️⃣ list_engineering_tools(category='...')", 
+                "2️⃣ list_engineering_tools(tags=['...'])", 
                 "3️⃣ get_tool_details(tool_name='...')",
                 "4️⃣ calculate_engineering(tool_name='...', parameters={...})"
             ],

@@ -118,7 +118,7 @@ Parameter:
 - s: Wanddicke [mm]
 
 Anwendungsbereich: Dünnwandige zylindrische Druckbehälter (s/d < 0.1)""",
-    "tags": ["pressure", "engineering", "symbolic", "vessels"],
+    "tags": ["mechanik"],
     "function": solve_kesselformel,
     "examples": [
         {
