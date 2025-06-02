@@ -1,33 +1,26 @@
 from fastmcp import FastMCP, Context
 import datetime
-from typing import Optional, Dict, List, Any
+from typing import Optional, Dict, List
 from engineering_mcp.registry import (
     get_tool_info_for_llm, 
     discover_engineering_tools,
-    get_tool_details_from_mcp,
-    get_available_tools_list,
-    get_registered_tools_list,
-    get_tools_by_category,
-    register_tool_with_mcp,
-    register_all_tools_with_mcp,
-    register_category_tools_with_mcp
+    get_tool_details_from_mcp
 )
 
-# MCP Server mit ausführlichen Instructions für LLMs
+# MCP Server mit Progressive Tool Disclosure
 mcp = FastMCP(
     name="EngineersCalc", 
     instructions="""
-🔧 Engineering Calculation Server - Symbolische Ingenieurberechnungen
+🔧 Engineering Calculation Server - Progressive Tool Disclosure
 
 📋 ÜBERSICHT:
-Dieser Server bietet Zugriff auf eine Sammlung von Engineering-Tools, die Formeln 
-symbolisch nach verschiedenen Variablen auflösen können. Alle Tools verwenden SymPy
-für exakte mathematische Berechnungen.
+Dieser Server nutzt Progressive Tool Disclosure - beim Handshake siehst du nur 3 Discovery-Tools.
+Engineering-Tools werden erst nach Detailabfrage sichtbar und aufrufbar.
 
-🎯 WICHTIGER WORKFLOW (DISCOVERY UND DIREKTE NUTZUNG):
+🎯 PROGRESSIVE DISCOVERY WORKFLOW:
 1️⃣ get_available_categories() - Zeigt verfügbare Tool-Kategorien
 2️⃣ list_engineering_tools(category="...") - Listet Tools einer Kategorie  
-3️⃣ get_tool_details(tool_name="...") - Lädt Tool-Details UND registriert Tool automatisch
+3️⃣ get_tool_details(tool_name="...") - ⚡ SCHALTET TOOL FREI für direkten Aufruf
 4️⃣ TOOL_DIREKT_AUFRUFEN - z.B. solve_kesselformel(p=10, d=100, sigma=160)
 
 ⚙️ KERNKONZEPT - Symbolische Variablen-Auflösung:
@@ -43,33 +36,29 @@ für exakte mathematische Berechnungen.
 - materials: Werkstoffkennwerte, Festigkeitsberechnungen
 - (weitere Kategorien über get_available_categories() erkunden)
 
-💡 TIPPS:
-- Starte IMMER mit get_available_categories()
-- Nutze get_tool_details() um Tools zu laden UND Parameter-Info zu erhalten
-- Alle physikalischen Werte müssen positiv sein
-- Achte auf Einheiten (werden in Tool-Details angegeben)
-- Nach get_tool_details() sind Tools DIREKT aufrufbar (z.B. solve_circle_area(radius=10))
+💡 WICHTIG - Progressive Disclosure:
+- Beim Handshake siehst du nur 3 Discovery-Tools
+- Engineering-Tools sind registriert aber VERSTECKT
+- get_tool_details(tool_name) schaltet spezifisches Tool frei
+- Danach ist das Tool in ListTools sichtbar und aufrufbar
 
 🔍 BEISPIEL-WORKFLOW:
 1. categories = get_available_categories()
 2. tools = list_engineering_tools(category="pressure")
-3. details = get_tool_details(tool_name="solve_kesselformel")  # Tool wird automatisch geladen!
-4. result = solve_kesselformel(p=10, d=100, sigma=160)  # DIREKT verfügbar!
-
-🚀 DYNAMISCHES TOOL-LOADING:
-- Tools sind beim Handshake NICHT sichtbar (kompakter Handshake)
-- Tools werden automatisch registriert sobald Details abgerufen werden
-- Einmal registrierte Tools bleiben für die Session verfügbar
-- Discovery-Tools sind immer verfügbar, Engineering-Tools nur nach Bedarf
+3. details = get_tool_details(tool_name="solve_kesselformel")  # ⚡ SCHALTET FREI
+4. result = solve_kesselformel(p=10, d=100, sigma=160)  # JETZT VERFÜGBAR!
 """
 )
+
+# Session State für Progressive Disclosure
+_session_allowed_tools = set()
 
 @mcp.tool()
 def clock() -> str:
     "Aktuelle UTC-Zeit zurückgeben"
     return datetime.datetime.utcnow().isoformat() + "Z"
 
-# ===== Meta-Tools für Discovery (Handshake sichtbar) =====
+# ===== Discovery Tools (IMMER sichtbar) =====
 
 @mcp.tool(
     name="get_available_categories",
@@ -91,8 +80,8 @@ async def get_available_categories(
     if ctx:
         await ctx.info("Sammle verfügbare Tool-Kategorien...")
     
-    # Hole Engineering-Tools aus interner Registry
-    tool_info = get_tool_info_for_llm(mcp_instance=mcp)
+    # Hole Engineering-Tools aus versteckter Registry
+    tool_info = get_tool_info_for_llm(mcp_instance=mcp, hidden_registry=True)
     
     # Gruppiere nach Kategorien
     categories_info = {}
@@ -105,15 +94,11 @@ async def get_available_categories(
                 "name": category,
                 "tools": [],
                 "tool_count": 0,
-                "registered_count": 0,
                 "description": ""
             }
         
         categories_info[category]["tools"].append(tool["name"])
         categories_info[category]["tool_count"] += 1
-        
-        if tool.get("is_registered", False):
-            categories_info[category]["registered_count"] += 1
     
     # Kategorie-Beschreibungen hinzufügen
     from engineering_mcp.registry import get_category_description
@@ -127,9 +112,12 @@ async def get_available_categories(
         "available_categories": list(categories_info.keys()),
         "category_details": categories_info,
         "total_categories": len(categories_info),
-        "total_tools": sum(info["tool_count"] for info in categories_info.values()),
-        "registered_tools": sum(info["registered_count"] for info in categories_info.values()),
-        "usage_hint": "Verwende diese Kategorien mit list_engineering_tools(category='...')"
+        "usage_hint": "Verwende diese Kategorien mit list_engineering_tools(category='...')",
+        "progressive_disclosure_status": {
+            "hidden_tools_available": len(tool_info),
+            "currently_unlocked": len(_session_allowed_tools),
+            "next_step": "Verwende list_engineering_tools(category='...') um Tools zu erkunden"
+        }
     }
 
 @mcp.tool(
@@ -154,8 +142,8 @@ async def list_engineering_tools(
     if ctx:
         await ctx.info(f"Sammle Engineering-Tools für Kategorie: {category}")
     
-    # Hole Engineering-Tools aus interner Registry
-    tool_info = get_tool_info_for_llm(mcp_instance=mcp)
+    # Hole Engineering-Tools aus versteckter Registry
+    tool_info = get_tool_info_for_llm(mcp_instance=mcp, hidden_registry=True)
     
     # Filter nach Kategorie
     filtered_tools = [tool for tool in tool_info if category in tool.get("tags", []) or category == tool.get("category")]
@@ -163,53 +151,77 @@ async def list_engineering_tools(
     # Kompakte Darstellung für Discovery
     compact_tools = []
     for tool in filtered_tools:
+        is_unlocked = tool["name"] in _session_allowed_tools
+        
         compact_tools.append({
             "name": tool["name"],
             "short_description": tool.get("short_description", tool["description"].split(".")[0]),
             "solvable_variables": tool["solvable_variables"],
             "tags": tool["tags"],
-            "is_registered": tool.get("is_registered", False),
-            "status": "✅ Verfügbar" if tool.get("is_registered", False) else "🔄 Wird bei Details geladen",
-            "next_step": f"get_tool_details(tool_name='{tool['name']}') um zu laden und nutzen"
+            "call_example": f"{tool['name']}(...)" if is_unlocked else f"get_tool_details('{tool['name']}')",
+            "status": "🔓 UNLOCKED - Ready to call" if is_unlocked else "🔒 LOCKED - Call get_tool_details() to unlock",
+            "unlock_hint": f"Nutze get_tool_details('{tool['name']}') um das Tool freizuschalten" if not is_unlocked else "Tool bereits freigeschaltet!"
         })
     
     if ctx:
         await ctx.info(f"Gefunden: {len(compact_tools)} Tools in Kategorie {category}")
     
-    return compact_tools
+    unlocked_count = sum(1 for tool in compact_tools if tool["name"] in _session_allowed_tools)
+    
+    return {
+        "tools": compact_tools,
+        "category": category,
+        "total_tools": len(compact_tools),
+        "unlocked_tools": unlocked_count,
+        "locked_tools": len(compact_tools) - unlocked_count,
+        "progressive_disclosure_hint": "Verwende get_tool_details(tool_name) um Tools freizuschalten"
+    }
 
 @mcp.tool(
     name="get_tool_details",
-    description="Ruft detaillierte Informationen zu einem Tool ab UND registriert es automatisch für direkten Aufruf",
-    tags=["discovery", "engineering", "documentation", "loader", "meta"]
+    description="Ruft detaillierte Informationen zu einem Tool ab und SCHALTET ES FREI für direkten Aufruf",
+    tags=["discovery", "engineering", "documentation", "meta", "unlock"]
 )
 async def get_tool_details(
     tool_name: str,
     ctx: Context = None
 ) -> Dict:
     """
-    Liefert vollständige Dokumentation eines Engineering-Tools UND registriert es automatisch.
-    Nach diesem Aufruf ist das Tool direkt verfügbar (z.B. solve_kesselformel(...))
+    Liefert vollständige Dokumentation eines Engineering-Tools und schaltet es für direkten Aufruf frei.
     
     Args:
         tool_name: Name des Tools (z.B. "solve_kesselformel")
         ctx: FastMCP Context für Logging
         
     Returns:
-        Dict: Ausführliche Tool-Dokumentation mit Registrierungsstatus
+        Dict: Tool-Dokumentation + Freischaltung-Bestätigung
     """
+    global _session_allowed_tools
+    
     if ctx:
-        await ctx.info(f"Hole Details und registriere Tool: {tool_name}")
+        await ctx.info(f"Hole Details für Tool: {tool_name} und schalte es frei...")
     
     try:
-        # Dies registriert das Tool automatisch bei MCP
-        details = await get_tool_details_from_mcp(tool_name, mcp_instance=mcp)
+        details = await get_tool_details_from_mcp(tool_name, mcp_instance=mcp, hidden_registry=True)
+        
+        # ⚡ PROGRESSIVE DISCLOSURE: Tool in Session-Whitelist hinzufügen
+        _session_allowed_tools.add(tool_name)
+        
+        # Registriere das Tool jetzt DYNAMISCH bei FastMCP
+        await register_engineering_tool_dynamically(tool_name)
         
         if ctx:
-            if details.get('is_registered', False):
-                await ctx.info(f"✅ Tool erfolgreich registriert und verfügbar: {tool_name}")
-            else:
-                await ctx.warn(f"⚠️ Tool-Details abgerufen, aber Registrierung fehlgeschlagen: {tool_name}")
+            await ctx.info(f"✅ Tool {tool_name} freigeschaltet und bei MCP registriert")
+        
+        # Erweiterte Antwort mit Freischaltung-Info
+        details["unlock_status"] = {
+            "unlocked": True,
+            "tool_name": tool_name,
+            "session_tools_unlocked": len(_session_allowed_tools),
+            "direct_call_available": True,
+            "message": f"✅ {tool_name} ist jetzt für direkten Aufruf verfügbar!",
+            "next_step": f"Du kannst jetzt {tool_name}(parameter=...) direkt aufrufen"
+        }
         
         return details
         
@@ -219,140 +231,46 @@ async def get_tool_details(
         
         return {
             "error": str(e),
-            "available_tools": "Nutze list_engineering_tools() um verfügbare Tools zu sehen"
+            "available_tools": "Nutze list_engineering_tools() um verfügbare Tools zu sehen",
+            "unlock_status": {
+                "unlocked": False,
+                "error": f"Tool {tool_name} nicht gefunden"
+            }
         }
 
-# ===== Bulk-Loader-Tools für Effizienz (Handshake sichtbar) =====
-
-@mcp.tool(
-    name="register_category_tools",
-    description="Registriert ALLE Tools einer Kategorie auf einmal für direkten Aufruf",
-    tags=["loader", "bulk", "efficiency", "meta"]
-)
-async def register_category_tools(
-    category: str,
-    ctx: Context = None
-) -> Dict:
+async def register_engineering_tool_dynamically(tool_name: str):
     """
-    Registriert alle Tools einer Kategorie bei MCP für direkten Aufruf.
-    Effizient für Workflows mit mehreren Tools derselben Kategorie.
-    
-    Args:
-        category: Kategorie-Name (z.B. "pressure", "geometry")
-        ctx: FastMCP Context für Logging
-        
-    Returns:
-        Dict: Registrierungsergebnis
+    Registriert ein Engineering-Tool dynamisch bei FastMCP nach der Freischaltung.
     """
-    if ctx:
-        await ctx.info(f"Registriere alle Tools der Kategorie: {category}")
+    from engineering_mcp.registry import _HIDDEN_ENGINEERING_TOOLS
     
-    try:
-        registered_count = register_category_tools_with_mcp(category)
-        registered_tools = get_registered_tools_list()
+    if tool_name in _HIDDEN_ENGINEERING_TOOLS:
+        tool_metadata = _HIDDEN_ENGINEERING_TOOLS[tool_name]
+        tool_func = tool_metadata.get('function')
         
-        # Filter für Tools dieser Kategorie
-        category_tools = get_tools_by_category().get(category, [])
-        registered_in_category = [tool for tool in registered_tools if tool in category_tools]
-        
-        if ctx:
-            await ctx.info(f"✅ {registered_count} Tools aus Kategorie '{category}' registriert")
-        
-        return {
-            "category": category,
-            "registered_count": registered_count,
-            "registered_tools": registered_in_category,
-            "total_registered": len(registered_tools),
-            "status": f"✅ {registered_count} Tools aus '{category}' jetzt direkt verfügbar",
-            "usage": f"Du kannst jetzt alle Tools direkt aufrufen, z.B. {registered_in_category[0] if registered_in_category else 'tool_name'}(...)"
-        }
-        
-    except Exception as e:
-        if ctx:
-            await ctx.error(f"Fehler bei Bulk-Registrierung für Kategorie {category}: {str(e)}")
-        
-        return {
-            "error": str(e),
-            "category": category
-        }
-
-@mcp.tool(
-    name="register_all_tools",
-    description="Registriert ALLE Engineering-Tools auf einmal für direkten Aufruf (Vorsicht: viele Tools)",
-    tags=["loader", "bulk", "all", "meta"]
-)
-async def register_all_tools(
-    ctx: Context = None
-) -> Dict:
-    """
-    Registriert ALLE verfügbaren Engineering-Tools bei MCP.
-    Nutze dies nur wenn du viele verschiedene Tools benötigst.
-    
-    Args:
-        ctx: FastMCP Context für Logging
-        
-    Returns:
-        Dict: Registrierungsergebnis aller Tools
-    """
-    if ctx:
-        await ctx.info("Registriere ALLE Engineering-Tools...")
-    
-    try:
-        registered_count = register_all_tools_with_mcp()
-        registered_tools = get_registered_tools_list()
-        
-        if ctx:
-            await ctx.info(f"✅ {registered_count} Tools insgesamt registriert")
-        
-        return {
-            "registered_count": registered_count,
-            "registered_tools": registered_tools,
-            "status": f"✅ Alle {registered_count} Engineering-Tools sind jetzt direkt verfügbar",
-            "usage": "Du kannst jetzt alle Tools direkt aufrufen, z.B. solve_kesselformel(p=10, d=100, sigma=160)",
-            "categories": get_tools_by_category()
-        }
-        
-    except Exception as e:
-        if ctx:
-            await ctx.error(f"Fehler bei vollständiger Registrierung: {str(e)}")
-        
-        return {
-            "error": str(e)
-        }
+        if tool_func and callable(tool_func):
+            # Dynamische Registrierung bei FastMCP
+            mcp.tool(
+                name=tool_name,
+                description=tool_metadata.get('short_description', tool_metadata.get('description', '')),
+                tags=tool_metadata.get('tags', [])
+            )(tool_func)
+            
+            print(f"🔓 Dynamisch registriert: {tool_name} bei FastMCP")
 
 # Initialisierung beim Server-Start
 async def init_engineering_tools():
-    """Lädt und speichert Engineering-Tools für dynamische Registrierung"""
-    tools_count = await discover_engineering_tools(mcp_instance=mcp)
-    print(f"✅ {tools_count} Engineering-Tools bereit für dynamische Registrierung")
-    print(f"✅ 5 Discovery/Loader-Tools + 1 Utility-Tool (clock) beim Handshake sichtbar")
-    print(f"🎯 Dynamisches Tool-Loading aktiviert:")
-    print(f"   1. get_available_categories")
-    print(f"   2. list_engineering_tools")  
-    print(f"   3. get_tool_details (lädt Tool automatisch)")
-    print(f"   4. register_category_tools (Bulk-Loader)")
-    print(f"   5. register_all_tools (Alle-Tools-Loader)")
-    print(f"")
-    print(f"📋 LLM sieht beim Handshake NUR:")
-    print(f"   ✅ clock, get_available_categories, list_engineering_tools")
-    print(f"   ✅ get_tool_details, register_category_tools, register_all_tools")
-    print(f"   ❌ KEINE Engineering-Tools (solve_*, calculate_*)")
-    print(f"")
-    print(f"🚀 Engineering-Tools werden automatisch registriert bei:")
-    print(f"   - get_tool_details(tool_name): Einzelnes Tool")
-    print(f"   - register_category_tools(category): Alle Tools einer Kategorie")
-    print(f"   - register_all_tools(): Alle verfügbaren Tools")
+    """Lädt Engineering-Tools und registriert sie VERSTECKT (nur in Registry)"""
+    global _session_allowed_tools
+    _session_allowed_tools = set()  # Reset session state
+    
+    # Lade Tools in versteckte Registry (NICHT bei MCP registrieren!)
+    tools_count = await discover_engineering_tools(mcp_instance=mcp, register_hidden=True)
+    print(f"🔐 {tools_count} Engineering-Tools in versteckter Registry geladen")
+    print(f"✅ 4 Discovery-Tools (immer sichtbar) bereit")
+    print(f"🎯 Progressive Tool Disclosure aktiviert:")
+    print(f"   ├─ Handshake: Nur 4 Tools sichtbar (clock + 3 Discovery)")
+    print(f"   ├─ Discovery: list_categories → list_tools → get_details")
+    print(f"   ├─ Freischaltung: get_tool_details() → Session-Whitelist + Dynamische MCP-Registrierung")
+    print(f"   └─ Direkter Aufruf: Tools nach Freischaltung verfügbar")
     return tools_count 
-
-if __name__ == "__main__":
-    import asyncio
-    
-    async def start_server():
-        # Engineering-Tools initialisieren
-        tools_count = await init_engineering_tools()
-        
-        # Server starten
-        await mcp.run()
-    
-    # Server starten
-    asyncio.run(start_server()) 
