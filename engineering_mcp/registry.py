@@ -1,8 +1,7 @@
 """
 Tool-Registry und Discovery-System für Engineering MCP
 
-Verwaltet die separate Registry für Engineering-Tools und 
-bietet Discovery-Funktionen für LLM-Orchestrierung.
+Registriert Engineering-Tools direkt bei MCP und bietet Discovery-Funktionen.
 """
 
 import re
@@ -10,23 +9,19 @@ import pkgutil
 import importlib
 from typing import Dict, List, Optional, Any, Callable
 import asyncio
-import inspect
 
 
-# Globale Engineering-Tool-Registry (NICHT bei MCP registriert!)
-_ENGINEERING_TOOLS_REGISTRY: Dict[str, Dict] = {}
-
-
-async def discover_engineering_tools() -> int:
+async def discover_engineering_tools(mcp_instance: Any) -> int:
     """
-    Entdeckt Engineering-Tools im tools/ Verzeichnis und speichert sie in separater Registry.
-    REGISTRIERT NICHT bei MCP - nur interne Speicherung!
+    Entdeckt Engineering-Tools und registriert sie DIREKT bei MCP.
     
+    Args:
+        mcp_instance: FastMCP Instanz
+        
     Returns:
-        int: Anzahl der entdeckten Engineering-Tools
+        int: Anzahl der registrierten Engineering-Tools
     """
-    global _ENGINEERING_TOOLS_REGISTRY
-    _ENGINEERING_TOOLS_REGISTRY.clear()
+    tools_count = 0
     
     try:
         # Dynamischer Import aller Tool-Module
@@ -53,14 +48,35 @@ async def discover_engineering_tools() -> int:
                             tool_func = metadata.get('function')
                             
                             if tool_func and callable(tool_func):
-                                # Speichere in separater Registry
+                                # Registriere Tool DIREKT bei MCP
                                 tool_id = metadata.get('name', tool_func.__name__)
-                                _ENGINEERING_TOOLS_REGISTRY[tool_id] = {
+                                
+                                # Tool-Tags für Discovery erweitern
+                                tags = metadata.get('tags', [])
+                                category = category_name.split('.')[-1]
+                                if category not in tags:
+                                    tags.append(category)
+                                tags.append('engineering')
+                                
+                                # Bei MCP registrieren mit discovery-Tags
+                                mcp_instance.tool(
+                                    name=tool_id,
+                                    description=metadata.get('short_description', metadata.get('description', '')),
+                                    tags=tags
+                                )(tool_func)
+                                
+                                # Store metadata for discovery
+                                if not hasattr(mcp_instance, '_engineering_metadata'):
+                                    mcp_instance._engineering_metadata = {}
+                                
+                                mcp_instance._engineering_metadata[tool_id] = {
                                     **metadata,
-                                    'category': category_name.split('.')[-1],
-                                    'module': tool_module
+                                    'category': category
                                 }
-                                print(f"✅ Entdeckt: {tool_id} in {category_name.split('.')[-1]}")
+                                
+                                tools_count += 1
+                                print(f"✅ Registriert: {tool_id} in Kategorie {category}")
+                                
                     except Exception as e:
                         print(f"❌ Fehler beim Laden von {tool_name}: {e}")
                         
@@ -68,190 +84,57 @@ async def discover_engineering_tools() -> int:
         print("ℹ️ Keine Engineering-Tools gefunden (tools/ Verzeichnis fehlt)")
         return 0
     
-    return len(_ENGINEERING_TOOLS_REGISTRY)
+    return tools_count
 
 
-def get_tool_info_for_llm(include_engineering: bool = True) -> List[Dict]:
+def get_tool_info_for_llm(mcp_instance: Any) -> List[Dict]:
     """
-    Erstellt strukturierte Tool-Informationen für LLM-Discovery.
+    Erstellt strukturierte Tool-Informationen aus direkt bei MCP registrierten Tools.
     
     Args:
-        include_engineering: Engineering-Tools einbeziehen
+        mcp_instance: FastMCP Instanz
         
     Returns:
         List[Dict]: Tool-Informationen mit solvable_variables
     """
     tool_info = []
     
-    if include_engineering:
-        for tool_name, tool_data in _ENGINEERING_TOOLS_REGISTRY.items():
-            # Extrahiere lösbare Variablen aus der Beschreibung
-            solvable_vars = []
-            description = tool_data.get('description', '')
-            
-            # Parse: "Lösbare Variablen: [var1, var2, var3]"
-            match = re.search(r'Lösbare Variablen:\s*\[([^\]]+)\]', description)
-            if match:
-                vars_str = match.group(1)
-                solvable_vars = [var.strip() for var in vars_str.split(',')]
-            
-            tool_info.append({
-                "name": tool_name,
-                "description": description,
-                "tags": tool_data.get('tags', []),
-                "category": tool_data.get('category', 'unknown'),
-                "solvable_variables": solvable_vars,
-                "is_symbolic": "symbolic" in tool_data.get('tags', []),
-                "source": "engineering_registry"
-            })
+    # Hole Engineering-Metadaten falls vorhanden
+    engineering_metadata = getattr(mcp_instance, '_engineering_metadata', {})
+    
+    # Durchlaufe alle bei MCP registrierten Tools
+    for tool_name, tool_data in engineering_metadata.items():
+        # Extrahiere lösbare Variablen aus der Beschreibung
+        solvable_vars = []
+        description = tool_data.get('description', '')
+        
+        # Parse: "Lösbare Variablen: [var1, var2, var3]"
+        match = re.search(r'Lösbare Variablen:\s*\[([^\]]+)\]', description)
+        if match:
+            vars_str = match.group(1)
+            solvable_vars = [var.strip() for var in vars_str.split(',')]
+        
+        tool_info.append({
+            "name": tool_name,
+            "short_description": tool_data.get('short_description', description.split('.')[0]),
+            "description": description,
+            "tags": tool_data.get('tags', []),
+            "category": tool_data.get('category', 'unknown'),
+            "solvable_variables": solvable_vars,
+            "is_symbolic": "symbolic" in tool_data.get('tags', []),
+            "source": "mcp_direct"
+        })
     
     return tool_info
 
 
-def get_symbolic_tools_summary() -> Dict:
+async def get_tool_details_from_mcp(tool_name: str, mcp_instance: Any) -> Dict:
     """
-    Erstellt eine kategorisierte Übersicht aller symbolischen Tools.
-    
-    Returns:
-        Dict: Strukturierte Übersicht mit Formeln und lösbaren Variablen
-    """
-    summary = {
-        "total_tools": 0,
-        "categories": {},
-        "symbolic_tools": []
-    }
-    
-    for tool_name, tool_data in _ENGINEERING_TOOLS_REGISTRY.items():
-        if "symbolic" in tool_data.get('tags', []):
-            category = tool_data.get('category', 'unknown')
-            
-            # Kategorie initialisieren falls noch nicht vorhanden
-            if category not in summary["categories"]:
-                summary["categories"][category] = {
-                    "tools": [],
-                    "description": get_category_description(category)
-                }
-            
-            # Tool-Info sammeln
-            tool_info = {
-                "name": tool_name,
-                "description": tool_data.get('description', ''),
-                "solvable_variables": extract_solvable_variables(tool_data.get('description', ''))
-            }
-            
-            summary["categories"][category]["tools"].append(tool_info)
-            summary["symbolic_tools"].append(tool_info)
-    
-    summary["total_tools"] = len(summary["symbolic_tools"])
-    return summary
-
-
-async def call_engineering_tool(tool_name: str, parameters: Dict, ctx: Optional['Context'] = None) -> Any:
-    """
-    Führt ein Engineering-Tool aus der Registry aus.
+    Liefert vollständige Dokumentation für ein bei MCP registriertes Tool.
     
     Args:
         tool_name: Name des Tools
-        parameters: Tool-Parameter
-        ctx: Optional FastMCP Context für Logging
-        
-    Returns:
-        Any: Tool-Ergebnis
-        
-    Raises:
-        ValueError: Bei unbekanntem Tool
-    """
-    if tool_name not in _ENGINEERING_TOOLS_REGISTRY:
-        available_tools = list(_ENGINEERING_TOOLS_REGISTRY.keys())
-        raise ValueError(f"Unbekanntes Tool: {tool_name}. Verfügbare Tools: {available_tools}")
-    
-    tool_data = _ENGINEERING_TOOLS_REGISTRY[tool_name]
-    tool_func = tool_data.get('function')
-    
-    if not tool_func:
-        raise ValueError(f"Tool {tool_name} hat keine ausführbare Funktion")
-    
-    # Context zu Parametern hinzufügen falls erforderlich
-    sig = inspect.signature(tool_func)
-    tool_params = dict(parameters)
-    
-    # Füge ctx hinzu wenn die Funktion es erwartet
-    if 'ctx' in sig.parameters:
-        tool_params['ctx'] = ctx
-    
-    try:
-        # Führe Tool aus (async wenn möglich)
-        if asyncio.iscoroutinefunction(tool_func):
-            return await tool_func(**tool_params)
-        else:
-            return tool_func(**tool_params)
-    except TypeError as e:
-        # Bessere Fehlermeldung bei Parameter-Problemen
-        expected_params = list(sig.parameters.keys())
-        provided_params = list(parameters.keys())
-        raise ValueError(
-            f"Parameter-Fehler für Tool '{tool_name}': {e}\n"
-            f"Erwartet: {expected_params}\n"
-            f"Gegeben: {provided_params}"
-        )
-
-
-def extract_solvable_variables(description: str) -> List[str]:
-    """
-    Extrahiert lösbare Variablen aus Tool-Beschreibung.
-    
-    Args:
-        description: Tool-Beschreibung
-        
-    Returns:
-        List[str]: Liste der lösbaren Variablen
-    """
-    match = re.search(r'Lösbare Variablen:\s*\[([^\]]+)\]', description)
-    if match:
-        vars_str = match.group(1)
-        return [var.strip() for var in vars_str.split(',')]
-    return []
-
-
-def get_category_description(category: str) -> str:
-    """
-    Gibt Beschreibung für Tool-Kategorie zurück.
-    
-    Args:
-        category: Kategorie-Name
-        
-    Returns:
-        str: Kategorie-Beschreibung
-    """
-    descriptions = {
-        "pressure": "Druckbehälter, Kesselformeln, Druckberechnungen",
-        "geometry": "Flächenberechnungen, Volumen, geometrische Formeln",
-        "materials": "Werkstoffkennwerte, Festigkeitsberechnungen",
-        "thermodynamics": "Wärmeübertragung, Zustandsänderungen",
-        "statics": "Statik, Kräfte, Momente, Balkenberechnung"
-    }
-    return descriptions.get(category, f"{category.title()}-bezogene Engineering-Tools")
-
-
-async def discover_tools(mcp_instance: Any) -> int:
-    """
-    Alias für discover_engineering_tools() zur Kompatibilität.
-    
-    Args:
-        mcp_instance: FastMCP Instanz (wird ignoriert)
-        
-    Returns:
-        int: Anzahl der entdeckten Tools
-    """
-    return await discover_engineering_tools()
-
-
-async def get_tool_details(tool_name: str) -> Dict:
-    """
-    Liefert vollständige Dokumentation für ein spezifisches Tool.
-    
-    Args:
-        tool_name: Name des Tools
+        mcp_instance: FastMCP Instanz
         
     Returns:
         Dict: Ausführliche Tool-Dokumentation
@@ -259,11 +142,14 @@ async def get_tool_details(tool_name: str) -> Dict:
     Raises:
         ValueError: Bei unbekanntem Tool
     """
-    if tool_name not in _ENGINEERING_TOOLS_REGISTRY:
-        available_tools = list(_ENGINEERING_TOOLS_REGISTRY.keys())
+    # Hole Engineering-Metadaten
+    engineering_metadata = getattr(mcp_instance, '_engineering_metadata', {})
+    
+    if tool_name not in engineering_metadata:
+        available_tools = list(engineering_metadata.keys())
         raise ValueError(f"Unbekanntes Tool: {tool_name}. Verfügbare Tools: {available_tools}")
     
-    tool_data = _ENGINEERING_TOOLS_REGISTRY[tool_name]
+    tool_data = engineering_metadata[tool_name]
     
     # Basis-Informationen
     details = {
@@ -320,7 +206,50 @@ async def get_tool_details(tool_name: str) -> Dict:
         for i, var in enumerate(details['solvable_variables']):
             other_vars = [v for v in details['solvable_variables'] if v != var]
             details['usage_hints'].append(
-                f"Um {var} zu berechnen: Gib {', '.join(other_vars)} an"
+                f"Um {var} zu berechnen: {tool_name}({', '.join([f'{v}=...' for v in other_vars])})"
             )
     
-    return details 
+    # Direkt-Aufruf Beispiel
+    if details['solvable_variables']:
+        example_vars = details['solvable_variables'][:-1]  # Alle außer der letzten
+        example_call = f"{tool_name}({', '.join([f'{v}=...' for v in example_vars])})"
+        details['direct_call_example'] = example_call
+    
+    return details
+
+
+def extract_solvable_variables(description: str) -> List[str]:
+    """
+    Extrahiert lösbare Variablen aus Tool-Beschreibung.
+    
+    Args:
+        description: Tool-Beschreibung
+        
+    Returns:
+        List[str]: Liste der lösbaren Variablen
+    """
+    match = re.search(r'Lösbare Variablen:\s*\[([^\]]+)\]', description)
+    if match:
+        vars_str = match.group(1)
+        return [var.strip() for var in vars_str.split(',')]
+    return []
+
+
+def get_category_description(category: str) -> str:
+    """
+    Gibt Beschreibung für Tool-Kategorie zurück.
+    
+    Args:
+        category: Kategorie-Name
+        
+    Returns:
+        str: Kategorie-Beschreibung
+    """
+    descriptions = {
+        "pressure": "Druckbehälter, Kesselformeln, Druckberechnungen",
+        "geometry": "Flächenberechnungen, Volumen, geometrische Formeln",
+        "materials": "Werkstoffkennwerte, Festigkeitsberechnungen",
+        "thermodynamics": "Wärmeübertragung, Zustandsänderungen",
+        "statics": "Statik, Kräfte, Momente, Balkenberechnung"
+    }
+    return descriptions.get(category, f"{category.title()}-bezogene Engineering-Tools") 

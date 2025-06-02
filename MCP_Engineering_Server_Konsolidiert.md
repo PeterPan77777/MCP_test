@@ -2,27 +2,28 @@
 
 ## Übersicht
 
-Der MCP Engineering Server ist ein modularer Server für Ingenieurberechnungen mit einer **mehrstufigen Discovery-Architektur**. Diese Architektur minimiert die initiale Tool-Liste für LLMs und ermöglicht eine schrittweise Erkundung der verfügbaren Funktionen.
+Der MCP Engineering Server ist ein modularer Server für Ingenieurberechnungen mit einer **eleganten Hybrid-Discovery-Architektur**. Diese Architektur kombiniert kompakte Discovery-Tools mit direkten Tool-Aufrufen für optimale LLM-Erfahrung.
 
 ## Architektur-Prinzipien
 
-### Mehrstufiger Discovery-Prozess
+### Hybrid-Discovery-Prozess
 
 ```
 LLM Handshake
     ↓
-4 Meta-Tools (kompakt)
+3 Discovery-Tools (kompakt)
     ↓
-Kategorien erkunden → Tools einer Kategorie → Tool-Details → Tool ausführen
+Kategorien erkunden → Tools einer Kategorie → Tool-Details → DIREKTER Tool-Aufruf
 ```
 
 ### Vorteile
-- **Skalierbarkeit**: Hunderte von Tools ohne Überlastung beim Handshake
-- **Progressive Discovery**: LLM erhält nur relevante Informationen
-- **Klare Organisation**: Tools nach Fachgebieten kategorisiert
-- **Flexible Erweiterung**: Neue Tools ohne Core-Änderungen
+- **Kompakter Handshake**: Nur 3 Discovery-Tools beim Start sichtbar
+- **Direkte Tool-Aufrufe**: `solve_kesselformel(p=10, d=100, sigma=160)` statt Gateway
+- **Progressive Discovery**: LLM lernt Tools schrittweise kennen
+- **Native MCP**: Echte Tool-Registrierung, keine Indirektion
+- **Skalierbar**: Funktioniert auch bei 100+ Tools
 
-## Meta-Tools (beim Handshake sichtbar)
+## Discovery-Tools (beim Handshake sichtbar)
 
 ### 1. get_available_categories
 ```python
@@ -40,7 +41,7 @@ Kategorien erkunden → Tools einer Kategorie → Tool-Details → Tool ausführ
     description="Listet alle Tools einer spezifischen Kategorie mit Kurzbeschreibungen auf"
 )
 ```
-**Zweck**: Zeigt Tools einer Kategorie mit kompakter Beschreibung und lösbaren Variablen.
+**Zweck**: Zeigt Tools einer Kategorie mit Namen und lösbaren Variablen.
 
 ### 3. get_tool_details
 ```python
@@ -49,16 +50,7 @@ Kategorien erkunden → Tools einer Kategorie → Tool-Details → Tool ausführ
     description="Ruft detaillierte Informationen zu einem spezifischen Tool ab"
 )
 ```
-**Zweck**: Liefert vollständige Dokumentation eines Tools inkl. Input/Output-Format, Beispiele und Verwendungshinweise.
-
-### 4. calculate_engineering
-```python
-@mcp.tool(
-    name="calculate_engineering",
-    description="Führt ein Engineering-Tool mit den angegebenen Parametern aus"
-)
-```
-**Zweck**: Gateway zur eigentlichen Tool-Ausführung.
+**Zweck**: Liefert vollständige Dokumentation mit direkten Aufruf-Beispielen.
 
 ## Workflow für LLMs
 
@@ -71,21 +63,19 @@ categories = await get_available_categories()
 ### Schritt 2: Tools einer Kategorie auflisten
 ```python
 tools = await list_engineering_tools(category="pressure")
-# Ergebnis: Liste mit Tool-Namen und Kurzbeschreibungen
+# Ergebnis: Liste mit Tool-Namen und call_example
 ```
 
 ### Schritt 3: Tool-Details abrufen (optional)
 ```python
 details = await get_tool_details(tool_name="solve_kesselformel")
-# Ergebnis: Vollständige Dokumentation, Parameter, Beispiele
+# Ergebnis: Vollständige Dokumentation mit direkten Aufruf-Beispielen
 ```
 
-### Schritt 4: Tool ausführen
+### Schritt 4: Tool DIREKT aufrufen ⭐
 ```python
-result = await calculate_engineering(
-    tool_name="solve_kesselformel",
-    parameters={"p": 10, "d": 100, "sigma": 160}
-)
+# DIREKT ohne Gateway:
+result = await solve_kesselformel(p=10, d=100, sigma=160)
 ```
 
 ## Tool-Struktur
@@ -96,38 +86,24 @@ Alle Engineering-Tools implementieren **eine Formel** und können diese nach **v
 ```python
 # Kesselformel: σ = p·d/(2·s)
 # Lösbar nach: [sigma, p, d, s]
+# Direkter Aufruf: solve_kesselformel(p=10, d=100, sigma=160)
 ```
 
-### Tool-Template
+### Automatische MCP-Registrierung
 ```python
-"""
-[Tool Name] - Kurzbeschreibung für list_engineering_tools
-
-Löst die Formel [FORMEL] nach verschiedenen Variablen auf.
-Lösbare Variablen: [var1, var2, var3]
-
-Detaillierte Beschreibung:
-[Ausführliche Erklärung der Formel, Anwendungsbereich, Einheiten etc.]
-
-Beispiele:
-1. Berechne var1 aus var2, var3:
-   parameters = {"var2": 10, "var3": 20}
-   
-2. Berechne var2 aus var1, var3:
-   parameters = {"var1": 5, "var3": 20}
-"""
-
-# ... Tool-Implementierung mit SymPy ...
-
+# Tools werden automatisch bei MCP registriert:
 TOOL_METADATA = {
     "name": "solve_tool_name",
-    "short_description": "Kurze Beschreibung für Discovery",
-    "description": "Vollständige Beschreibung mit Details",
+    "short_description": "Kurze Beschreibung für MCP-Registrierung",
+    "description": "Vollständige Beschreibung mit Lösbare Variablen: [var1, var2, var3]",
     "tags": ["category", "engineering", "symbolic"],
     "function": solve_tool_name,
-    "examples": [...],
-    "input_schema": {...},
-    "output_schema": {...}
+    "examples": [
+        {
+            "description": "Beispiel-Berechnung",
+            "direct_call": "solve_tool_name(var1=10, var2=20)"
+        }
+    ]
 }
 ```
 
@@ -135,17 +111,17 @@ TOOL_METADATA = {
 
 ```
 MCP_server_TEST/
-├── server.py              # Meta-Tools und MCP-Konfiguration
-├── web.py                 # Railway-kompatibler Entry-Point
-├── engineering_mcp/       # Core-Module
-│   ├── config.py         # Server-Konfiguration
-│   └── registry.py       # Tool-Registry und Discovery
-└── tools/                # Engineering-Tools nach Kategorien
-    ├── pressure/         # Druckberechnungen
-    │   └── kesselformel.py
-    ├── geometry/         # Geometrische Berechnungen
-    │   └── circle_area.py
-    └── materials/        # Werkstoffberechnungen
+├── server.py                    # Discovery-Tools und MCP-Konfiguration
+├── web.py                       # Railway-kompatibler Entry-Point
+├── engineering_mcp/             # Core-Module
+│   ├── config.py               # Server-Konfiguration
+│   └── registry.py             # Tool-Discovery und direkte MCP-Registrierung
+└── tools/                      # Engineering-Tools nach Kategorien
+    ├── pressure/               # Druckberechnungen
+    │   └── kesselformel.py     # Automatisch bei MCP registriert
+    ├── geometry/               # Geometrische Berechnungen
+    │   └── circle_area.py      # Automatisch bei MCP registriert
+    └── materials/              # Werkstoffberechnungen
 ```
 
 ## Konfiguration
@@ -171,35 +147,50 @@ starlette                   # Web Framework
 1. **Kategorie-Ordner** erstellen (falls nicht vorhanden)
 2. **Tool-Datei** nach Template erstellen
 3. **TOOL_METADATA** mit allen Informationen definieren
-4. **Server neu starten** - Tool wird automatisch entdeckt
+4. **Server neu starten** - Tool wird automatisch bei MCP registriert
 
 ## Best Practices
 
 ### Für Tool-Entwickler
-- **Konsistente Metadaten**: Kurz- und Langbeschreibung trennen
+- **Short_description**: Kompakt für MCP-Registrierung
 - **Klare Variablennamen**: Mathematische Konventionen befolgen
-- **Vollständige Beispiele**: Mindestens 2 Use-Cases dokumentieren
+- **Direct_call Beispiele**: In examples mit konkreten Aufrufen
 - **Robuste Validierung**: Alle physikalischen Constraints prüfen
 
 ### Für LLM-Integration
-- **Immer mit Kategorien starten**: Nie direkt alle Tools laden
-- **Tool-Details bei Bedarf**: Nur wenn Parameter unklar sind
-- **Fehlerbehandlung**: Status-Feld in Responses beachten
+- **Discovery-Workflow**: Immer get_categories → list_tools → (details) → direkter Aufruf
+- **Tool-Details nutzen**: Bei unklaren Parametern für Aufruf-Beispiele
+- **Direkte Aufrufe**: Nach Discovery Tools direkt aufrufen
 - **Einheiten beachten**: Immer in Tool-Details dokumentiert
+
+## Beispiel: Kompletter LLM-Workflow
+
+```python
+# 1. Discovery
+categories = await get_available_categories()
+tools = await list_engineering_tools(category="pressure")
+details = await get_tool_details(tool_name="solve_kesselformel")
+
+# 2. LLM lernt: solve_kesselformel ist verfügbar
+# 3. Direkter Aufruf:
+result = await solve_kesselformel(p=10, d=100, sigma=160)
+# → Ergebnis: s = 3.125 mm
+```
 
 ## Deployment (Railway)
 
 Der Server ist für Railway optimiert:
 - Nutzt PORT-Umgebungsvariable
 - Health-Check unter `/health`
-- Automatische Tool-Discovery beim Start
+- Automatische Tool-Discovery und MCP-Registrierung beim Start
 - Keine Änderungen am bestehenden Setup nötig
 
 ## Zusammenfassung
 
 Der MCP Engineering Server bietet:
-- ✅ **Kompakter Handshake**: Nur 4 Meta-Tools initial sichtbar
+- ✅ **Kompakter Handshake**: Nur 3 Discovery-Tools initial sichtbar
+- ✅ **Direkte Tool-Aufrufe**: Keine Gateway-Indirektion
 - ✅ **Progressive Discovery**: Schrittweise Tool-Erkundung
-- ✅ **Symbolische Berechnung**: Flexible Variablen-Auflösung
-- ✅ **Skalierbare Architektur**: Beliebig viele Tools möglich
+- ✅ **Native MCP**: Echte Tool-Registrierung
+- ✅ **Elegante Architektur**: Das Beste aus beiden Welten
 - ✅ **Railway-kompatibel**: Läuft ohne Anpassungen 
