@@ -28,13 +28,17 @@ mcp = FastMCP(
 Engineering Calculation Server - Symbolische Ingenieurberechnungen
 
 Dieser Server bietet Zugriff auf eine Sammlung von Engineering-Tools, die Formeln 
-symbolisch nach verschiedenen Variablen auflösen können.
+symbolisch nach verschiedenen Variablen auflösen können und diese numerisch auswerten können.
 
 WICHTIGER WORKFLOW:
 1. Nutze IMMER zuerst 'get_available_categories' um verfügbare Kategorien zu sehen
-2. Dann 'list_engineering_tools' mit einer spezifischen Kategorie
-3. Optional 'get_tool_details' für ausführliche Tool-Dokumentation
-4. Schließlich 'call_tool' zur Ausführung
+2. Dann 'list_engineering_tools' mit einer spezifischen Kategorie, um alle Tools einer Kategorie zu sehen.
+3. Verwende immer  'get_tool_details' für ausführliche Tool-Dokumentation, Bevor du eine Berechnung mittels call_tool durchführst
+4. Schließlich verwende 'call_tool' zur Ausführung.
+
+Bevor du eine Berechnung mittels calculate_engineering durchführst, verwende IMMER das tool get_tool_details:
+1. um das tool zu aktivieren (ohne get_tool_details bleibt das tool deaktiviert)
+2. um genau Informationen zu erhalten, wie du das tool mit calculate_engineering aufrufen musst.
 
 Die Tools verwenden SymPy für symbolische Mathematik und können Formeln nach 
 beliebigen Variablen auflösen. Gib immer genau n-1 Parameter an, wenn ein Tool 
