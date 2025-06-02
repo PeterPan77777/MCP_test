@@ -2,34 +2,34 @@
 
 ## Übersicht
 
-Der MCP Engineering Server ist ein modularer Server für Ingenieurberechnungen mit einer **Progressive Tool Disclosure Architektur**. Diese Architektur stellt sicher, dass beim Handshake nur wenige Discovery-Tools sichtbar sind, während Engineering-Tools erst nach expliziter Freischaltung verfügbar werden.
+Der MCP Engineering Server nutzt ein **hierarchisches Tool-Schema** mit echtem Tool-Hiding. Beim Handshake sind nur 3 Tools sichtbar, während Engineering-Tools komplett versteckt bleiben und nur über einen Dispatcher/Executor ausgeführt werden können.
 
 ## Architektur-Prinzipien
 
-### Progressive Tool Disclosure Prozess
+### Hierarchisches Tool-Schema
 
 ```
 LLM Handshake
     ↓
-4 Tools sichtbar (clock + 3 Discovery-Tools)
+3 Tools sichtbar (clock, dispatch_engineering, execute_tool)
     ↓
-Kategorien erkunden → Tools einer Kategorie → Tool-Details → FREISCHALTUNG → DIREKTER Tool-Aufruf
+Domain wählen → Domain aktivieren → Tool über execute_tool ausführen
 ```
 
 ### Implementierung
-- **Versteckte Registry**: Engineering-Tools werden in `_HIDDEN_ENGINEERING_TOOLS` gespeichert
-- **Session State**: Freigeschaltete Tools in `_session_allowed_tools` Set
-- **Dynamische Registrierung**: Tools werden erst nach `get_tool_details()` bei FastMCP registriert
-- **Keine Handler-Override**: Nutzt einfache Session-basierte Logik statt komplexer MCP-Handler
+- **Versteckte Registry**: Engineering-Tools in `_ENGINEERING_TOOLS` Dictionary (NICHT bei MCP registriert!)
+- **Session State**: Aktivierte Domain und erlaubte Tools in `_session_state`
+- **Dispatcher**: `dispatch_engineering` für Domain-Auswahl und Aktivierung
+- **Executor**: `execute_tool` für indirekte Tool-Ausführung
 
 ### Vorteile
-- **Minimaler Handshake**: Nur 4 Tools beim Start sichtbar
-- **Schrittweise Freischaltung**: Tools werden progressiv verfügbar gemacht
-- **Session-basiert**: Jede Session hat eigene freigeschaltete Tools
-- **Einfache Implementation**: Keine komplexen MCP-Handler-Overrides nötig
-- **Skalierbar**: Funktioniert auch bei 100+ Tools
+- **Minimaler Handshake**: Nur 3 Tools beim Start sichtbar
+- **Echtes Tool-Hiding**: Engineering-Tools sind NICHT bei MCP registriert
+- **Domain-basierte Kontrolle**: Tools nur nach Domain-Aktivierung nutzbar
+- **Skalierbar**: Beliebig viele versteckte Tools ohne Handshake-Bloat
+- **OpenAI-konform**: Löst das 64-Tools-Limit elegant
 
-## Discovery-Tools (beim Handshake sichtbar)
+## Sichtbare Tools (beim Handshake)
 
 ### 1. clock
 ```python
@@ -39,125 +39,163 @@ def clock() -> str:
 ```
 **Zweck**: Utility-Tool für Zeitstempel
 
-### 2. get_available_categories
+### 2. dispatch_engineering
 ```python
 @mcp.tool(
-    name="get_available_categories",
-    description="Gibt alle verfügbaren Engineering-Tool-Kategorien zurück. IMMER ZUERST AUFRUFEN!",
-    tags=["discovery", "categories", "meta"]
+    name="dispatch_engineering",
+    description="Wählt eine Engineering-Domain und aktiviert deren Tools. Domains: pressure, geometry, materials"
 )
 ```
-**Zweck**: Einstiegspunkt - zeigt verfügbare Kategorien wie pressure, geometry, materials etc.
+**Zweck**: Dispatcher für Domain-Auswahl und Tool-Aktivierung
+- `action="info"`: Zeigt alle verfügbaren Domains
+- `action="list"`: Listet Tools einer Domain mit Details
+- `action="activate"`: Aktiviert Domain für execute_tool
 
-### 3. list_engineering_tools
+### 3. execute_tool
 ```python
 @mcp.tool(
-    name="list_engineering_tools", 
-    description="Listet alle Tools einer spezifischen Kategorie mit Kurzbeschreibungen auf",
-    tags=["discovery", "engineering", "meta"]
+    name="execute_tool",
+    description="Führt ein aktiviertes Engineering-Tool mit den gegebenen Parametern aus"
 )
 ```
-**Zweck**: Zeigt Tools einer Kategorie mit Status (🔒 LOCKED / 🔓 UNLOCKED)
+**Zweck**: Executor für versteckte Engineering-Tools nach Domain-Aktivierung
 
-### 4. get_tool_details
+## Hierarchischer Workflow
+
+### Schritt 1: Domain-Informationen abrufen
 ```python
-@mcp.tool(
-    name="get_tool_details",
-    description="Ruft detaillierte Informationen zu einem Tool ab und SCHALTET ES FREI für direkten Aufruf",
-    tags=["discovery", "engineering", "documentation", "meta", "unlock"]
+result = await dispatch_engineering(domain="pressure", action="info")
+# Ergebnis: {"available_domains": ["pressure", "geometry", "materials"], ...}
+```
+
+### Schritt 2: Domain aktivieren
+```python
+result = await dispatch_engineering(domain="pressure", action="activate")
+# Ergebnis: {"domain_activated": "pressure", "tools_available": ["pressure.solve_kesselformel"], ...}
+```
+
+### Schritt 3: Tool ausführen über execute_tool
+```python
+result = await execute_tool(
+    tool_name="pressure.solve_kesselformel",
+    parameters={"p": 10, "d": 100, "sigma": 160}
 )
-```
-**Zweck**: ⚡ **SCHALTET TOOLS FREI** - Registriert Tools dynamisch bei FastMCP für direkten Aufruf
-
-## Progressive Discovery Workflow
-
-### Schritt 1: Kategorien erkunden
-```python
-categories = await get_available_categories()
-# Ergebnis: {"available_categories": ["pressure", "geometry", "materials", ...], 
-#           "progressive_disclosure_status": {"hidden_tools_available": 2, "currently_unlocked": 0}}
+# Ergebnis: {"unknown_variable": "s", "result": 3.125, "unit": "mm", ...}
 ```
 
-### Schritt 2: Tools einer Kategorie auflisten
-```python
-tools = await list_engineering_tools(category="pressure")
-# Ergebnis: {"tools": [{"name": "solve_kesselformel", "status": "🔒 LOCKED", ...}],
-#           "unlocked_tools": 0, "locked_tools": 1}
-```
+## Versteckte Engineering-Tools
 
-### Schritt 3: Tool freischalten ⚡
-```python
-details = await get_tool_details(tool_name="solve_kesselformel") 
-# ⚡ FREISCHALTUNG: Tool wird bei FastMCP registriert
-# Ergebnis: {"unlock_status": {"unlocked": True, "direct_call_available": True}}
-```
-
-### Schritt 4: Tool DIREKT aufrufen ⭐
-```python
-# JETZT VERFÜGBAR:
-result = await solve_kesselformel(p=10, d=100, sigma=160)
-# Ergebnis: {"unknown_variable": "s", "result": 3.125, "unit": "mm"}
-```
-
-## Tool-Struktur
-
-### Symbolischer Ansatz
-Alle Engineering-Tools implementieren **eine Formel** und können diese nach **verschiedenen Variablen** auflösen:
+### Tool-Struktur
+Engineering-Tools sind NICHT bei MCP registriert, sondern in einer internen Registry:
 
 ```python
-# Kesselformel: σ = p·d/(2·s)
-# Lösbar nach: [sigma, p, d, s]
-# Direkter Aufruf (nach Freischaltung): solve_kesselformel(p=10, d=100, sigma=160)
-```
-
-### Versteckte Registrierung
-```python
-# In engineering_mcp/registry.py:
-_HIDDEN_ENGINEERING_TOOLS = {}  # Versteckte Registry
-
-async def discover_engineering_tools(mcp_instance: Any, register_hidden: bool = False):
-    """Tools werden NICHT bei MCP registriert, sondern nur in versteckter Registry gespeichert"""
-    if register_hidden:
-        _HIDDEN_ENGINEERING_TOOLS[tool_id] = {
-            **metadata,
-            'category': category,
-            'function': tool_func
+_ENGINEERING_TOOLS = {
+    "pressure.solve_kesselformel": {
+        "function": _solve_kesselformel,  # Async function
+        "description": "Kesselformel σ = p·d/(2·s) - Löst nach einer der 4 Variablen auf",
+        "parameters": {
+            "sigma": "Spannung [N/mm²] (optional)",
+            "p": "Innendruck [bar] (optional)",
+            "d": "Innendurchmesser [mm] (optional)",
+            "s": "Wandstärke [mm] (optional)"
         }
-        # KEIN mcp_instance.tool() Aufruf!
+    },
+    "geometry.solve_circle_area": {
+        "function": _solve_circle_area,
+        "description": "Kreisfläche A = π·r² - Berechnet Fläche aus Radius oder umgekehrt",
+        "parameters": {
+            "area": "Kreisfläche [m²] (optional)",
+            "radius": "Kreisradius [m] (optional)"
+        }
+    }
+}
 ```
 
-### Dynamische Freischaltung
+### Implementierte Tools
+
+#### pressure.solve_kesselformel
+- **Formel**: σ = p·d/(2·s)
+- **Lösbare Variablen**: [sigma, p, d, s]
+- **Verwendung**: Druckbehälter-Berechnungen nach AD2000
+
+#### geometry.solve_circle_area
+- **Formel**: A = π·r²
+- **Lösbare Variablen**: [area, radius]
+- **Verwendung**: Kreisflächen-Berechnungen
+
+## Session State Management
+
 ```python
-# In server.py:
-async def register_engineering_tool_dynamically(tool_name: str):
-    """Nach get_tool_details() wird Tool bei FastMCP registriert"""
-    if tool_name in _HIDDEN_ENGINEERING_TOOLS:
-        tool_metadata = _HIDDEN_ENGINEERING_TOOLS[tool_name]
-        tool_func = tool_metadata.get('function')
-        
-        # JETZT erst bei FastMCP registrieren:
-        mcp.tool(
-            name=tool_name,
-            description=tool_metadata.get('short_description'),
-            tags=tool_metadata.get('tags', [])
-        )(tool_func)
+_session_state = {
+    "active_domain": None,      # Aktuell aktivierte Domain
+    "allowed_tools": set()      # Erlaubte Tool-Namen
+}
+```
+
+Nach Domain-Aktivierung werden die Domain-Tools in `allowed_tools` hinzugefügt.
+`execute_tool` prüft vor Ausführung, ob das Tool erlaubt ist.
+
+## Beispiel: Kompletter LLM-Workflow
+
+```python
+# 1. Domain-Übersicht
+info = await dispatch_engineering(domain="pressure", action="info")
+# → Zeigt verfügbare Domains und Status
+
+# 2. Tools einer Domain anzeigen
+tools = await dispatch_engineering(domain="pressure", action="list")
+# → {"tools": [{"name": "pressure.solve_kesselformel", "parameters": {...}}]}
+
+# 3. Domain aktivieren
+activate = await dispatch_engineering(domain="pressure", action="activate")
+# → {"domain_activated": "pressure", "examples": [...]}
+
+# 4. Tool ausführen
+result = await execute_tool(
+    tool_name="pressure.solve_kesselformel",
+    parameters={"p": 10, "d": 100, "sigma": 160}
+)
+# → {"unknown_variable": "s", "result": 3.125, "unit": "mm"}
 ```
 
 ## Projektstruktur
 
 ```
 MCP_server_TEST/
-├── server.py                    # Progressive Tool Disclosure + Discovery-Tools
-├── web.py                       # Railway-kompatibler Entry-Point
-├── engineering_mcp/             # Core-Module
-│   ├── config.py               # Server-Konfiguration
-│   └── registry.py             # Versteckte Tool-Registry + Discovery
-└── tools/                      # Engineering-Tools nach Kategorien
-    ├── pressure/               # Druckberechnungen
-    │   └── kesselformel.py     # Versteckt geladen, dynamisch freigeschaltet
-    ├── geometry/               # Geometrische Berechnungen
-    │   └── circle_area.py      # Versteckt geladen, dynamisch freigeschaltet
-    └── materials/              # Werkstoffberechnungen
+├── server.py                    # Hierarchisches Tool-Schema mit versteckten Tools
+├── web.py                       # Railway-kompatibler Entry-Point  
+├── engineering_mcp/             # (Nicht mehr benötigt für Tool-Hiding)
+└── tools/                       # (Nicht mehr benötigt - Tools direkt in server.py)
+```
+
+## Neue Tools hinzufügen
+
+1. **Tool-Funktion** als async function implementieren:
+```python
+async def _solve_new_tool(param1: float = None, param2: float = None, ctx: Context = None) -> Dict:
+    """Interne Tool-Implementierung"""
+    # Berechnung...
+    return {"result": ...}
+```
+
+2. **In Registry eintragen**:
+```python
+_ENGINEERING_TOOLS["domain.tool_name"] = {
+    "function": _solve_new_tool,
+    "description": "Tool-Beschreibung",
+    "parameters": {
+        "param1": "Beschreibung [Einheit] (optional)",
+        "param2": "Beschreibung [Einheit] (optional)"
+    }
+}
+```
+
+3. **Domain-Zuordnung** in `dispatch_engineering`:
+```python
+domain_tools = {
+    "domain": ["domain.tool_name"],  # Tool zur Domain hinzufügen
+    # ...
+}
 ```
 
 ## Konfiguration
@@ -165,113 +203,57 @@ MCP_server_TEST/
 ### Umgebungsvariablen
 ```bash
 SERVER_NAME=EngineersCalc    # Name des MCP Servers
-DEBUG=false                  # Debug-Modus
 PORT=8080                   # Server-Port (Railway)
 ```
 
 ### Requirements
 ```txt
-fastmcp>=2.5.1              # MCP Framework mit Tool-Support
+fastmcp>=2.5.1              # MCP Framework
 sympy>=1.13                 # Symbolische Mathematik
-pydantic>=2.0               # Input-Validierung
+pydantic>=2.0               # Input-Validierung (optional)
 uvicorn[standard]           # ASGI Server
 starlette                   # Web Framework
 ```
 
-## Implementation Details
-
-### Session State Management
-```python
-# Global Session State (vereinfacht, da keine Multi-Session bei Railway)
-_session_allowed_tools = set()
-
-# Nach Tool-Freischaltung:
-_session_allowed_tools.add(tool_name)
-await register_engineering_tool_dynamically(tool_name)
-```
-
-### Tool Status Tracking
-```python
-# In list_engineering_tools():
-for tool in filtered_tools:
-    is_unlocked = tool["name"] in _session_allowed_tools
-    
-    compact_tools.append({
-        "name": tool["name"],
-        "status": "🔓 UNLOCKED - Ready to call" if is_unlocked else "🔒 LOCKED - Call get_tool_details() to unlock",
-        "call_example": f"{tool['name']}(...)" if is_unlocked else f"get_tool_details('{tool['name']}')",
-        "unlock_hint": "Tool bereits freigeschaltet!" if is_unlocked else f"Nutze get_tool_details('{tool['name']}') um das Tool freizuschalten"
-    })
-```
-
-## Neue Tools hinzufügen
-
-1. **Kategorie-Ordner** erstellen (falls nicht vorhanden)
-2. **Tool-Datei** nach Template erstellen
-3. **TOOL_METADATA** mit allen Informationen definieren
-4. **Server neu starten** - Tool wird automatisch in versteckter Registry geladen
-5. **Zur Laufzeit**: Tool über `get_tool_details()` freischalten
-
 ## Best Practices
 
 ### Für Tool-Entwickler
-- **Short_description**: Kompakt für initiale Discovery
-- **Unlock_hints**: Klare Anweisungen zur Freischaltung
-- **Direct_call Beispiele**: In examples mit konkreten Aufrufen nach Freischaltung
-- **Robuste Validierung**: Alle physikalischen Constraints prüfen
+- **Klare Namenskonvention**: `domain.tool_name` Format
+- **Ausführliche Parameter-Beschreibungen**: Mit Einheiten und optional-Markierung
+- **Robuste Fehlerbehandlung**: Validierung in Tool-Funktionen
+- **Konsistente Rückgabe-Struktur**: Domain, Tool, Result, Unit
 
 ### Für LLM-Integration
-- **Discovery-Workflow**: Immer get_categories → list_tools → get_details → direkter Aufruf
-- **Tool-Status beachten**: 🔒/🔓 Status in list_engineering_tools
-- **Freischaltung zuerst**: Vor Tool-Aufruf immer get_tool_details() aufrufen
-- **Einheiten beachten**: Immer in Tool-Details dokumentiert
-
-## Beispiel: Kompletter LLM-Workflow
-
-```python
-# 1. Discovery Phase
-categories = await get_available_categories()
-# → ["pressure", "geometry", "materials"] + progressive_disclosure_status
-
-tools = await list_engineering_tools(category="pressure") 
-# → [{"name": "solve_kesselformel", "status": "🔒 LOCKED", ...}]
-
-# 2. Tool-Freischaltung
-details = await get_tool_details(tool_name="solve_kesselformel")
-# → ⚡ Tool wird dynamisch bei FastMCP registriert
-# → {"unlock_status": {"unlocked": True, "direct_call_available": True}}
-
-# 3. Direkter Tool-Aufruf (JETZT möglich)
-result = await solve_kesselformel(p=10, d=100, sigma=160)
-# → {"unknown_variable": "s", "result": 3.125, "unit": "mm"}
-```
+- **Hierarchischer Workflow**: Immer dispatch → activate → execute
+- **Domain-Aktivierung zuerst**: Vor execute_tool immer Domain aktivieren
+- **Parameter als Dictionary**: execute_tool erwartet parameters als Dict
+- **Fehlerbehandlung**: execute_tool gibt strukturierte Fehler zurück
 
 ## Deployment (Railway)
 
 Der Server ist für Railway optimiert:
 - Nutzt PORT-Umgebungsvariable
 - Health-Check unter `/health`
-- Automatische versteckte Tool-Discovery beim Start
-- Progressive Tool Disclosure ohne Session-Persistence (bei Railway nicht nötig)
+- Keine externen Dependencies für Tool-Registry
 - Keine Änderungen am bestehenden Setup nötig
 
-## Test Results
+## Test-Ergebnisse
 
-✅ **Progressive Tool Disclosure erfolgreich implementiert:**
-- ✅ 2 Engineering-Tools in versteckter Registry geladen
-- ✅ 4 Discovery-Tools beim Handshake sichtbar (clock + 3 Meta-Tools)
-- ✅ Session-basierte Freischaltung funktioniert
-- ✅ Dynamische Tool-Registrierung implementiert
-- ✅ Tools bleiben versteckt bis zur Freischaltung
+✅ **Hierarchisches Tool-Schema erfolgreich implementiert:**
+- ✅ Nur 3 Tools beim Handshake sichtbar
+- ✅ Engineering-Tools komplett versteckt (nicht bei MCP registriert)
+- ✅ Domain-basierte Tool-Aktivierung funktioniert
+- ✅ Tool-Ausführung über execute_tool funktioniert
+- ✅ Session State Management aktiv
 
 ## Zusammenfassung
 
 Der MCP Engineering Server bietet:
-- ✅ **Minimaler Handshake**: Nur 4 Tools initial sichtbar
-- ✅ **Progressive Freischaltung**: Tools werden nach Bedarf aktiviert
-- ✅ **Session-basiert**: Einfache Zustandsverwaltung
-- ✅ **Dynamische Registrierung**: FastMCP-konforme Tool-Registrierung
+- ✅ **Minimaler Handshake**: Nur 3 Tools sichtbar (clock, dispatcher, executor)
+- ✅ **Echtes Tool-Hiding**: Engineering-Tools sind NICHT bei MCP registriert
+- ✅ **Hierarchisches Schema**: Skaliert auf beliebig viele Tools
+- ✅ **OpenAI-konform**: Umgeht das 64-Tools-Limit elegant
+- ✅ **Domain-Organisation**: Klare Strukturierung der Tools
 - ✅ **Railway-kompatibel**: Läuft ohne Anpassungen
-- ✅ **Benutzerfreundlich**: Klare Status-Indikatoren und Workflow-Guidance
 
-Die Progressive Tool Disclosure löst das ursprüngliche Problem: **Beim Handshake sind nur wenige Discovery-Tools sichtbar, Engineering-Tools werden erst nach expliziter Freischaltung verfügbar**. 
+Das hierarchische Tool-Schema löst das ursprüngliche Problem vollständig: **Beim Handshake sind nur 3 Tools sichtbar, Engineering-Tools bleiben komplett versteckt und werden nur über den Dispatcher/Executor-Mechanismus ausgeführt**. 

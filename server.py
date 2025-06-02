@@ -1,276 +1,341 @@
 from fastmcp import FastMCP, Context
 import datetime
-from typing import Optional, Dict, List
-from engineering_mcp.registry import (
-    get_tool_info_for_llm, 
-    discover_engineering_tools,
-    get_tool_details_from_mcp
-)
+from typing import Optional, Dict, List, Literal, Any
 
-# MCP Server mit Progressive Tool Disclosure
+# MCP Server mit hierarchischem Tool-Schema
 mcp = FastMCP(
     name="EngineersCalc", 
     instructions="""
-🔧 Engineering Calculation Server - Progressive Tool Disclosure
+🔧 Engineering Calculation Server - Hierarchisches Tool-Schema
 
 📋 ÜBERSICHT:
-Dieser Server nutzt Progressive Tool Disclosure - beim Handshake siehst du nur 3 Discovery-Tools.
-Engineering-Tools werden erst nach Detailabfrage sichtbar und aufrufbar.
+Dieser Server nutzt ein hierarchisches Tool-Schema mit einem Dispatcher.
+Beim Handshake siehst du nur 3 Tools: clock, dispatch_engineering und execute_tool.
+Nach Domain-Auswahl kannst du Tools über execute_tool ausführen.
 
-🎯 PROGRESSIVE DISCOVERY WORKFLOW:
-1️⃣ get_available_categories() - Zeigt verfügbare Tool-Kategorien
-2️⃣ list_engineering_tools(category="...") - Listet Tools einer Kategorie  
-3️⃣ get_tool_details(tool_name="...") - ⚡ SCHALTET TOOL FREI für direkten Aufruf
-4️⃣ TOOL_DIREKT_AUFRUFEN - z.B. solve_kesselformel(p=10, d=100, sigma=160)
+🎯 HIERARCHISCHER WORKFLOW:
+1️⃣ dispatch_engineering(domain="...", action="...") - Wähle Domain und Aktion
+2️⃣ execute_tool(tool_name="...", parameters={...}) - Führe Domain-Tool aus
 
-⚙️ KERNKONZEPT - Symbolische Variablen-Auflösung:
-- Jedes Tool implementiert EINE Formel mit mehreren Variablen
-- Du gibst n-1 Variablen an, das Tool berechnet die fehlende Variable
-- Beispiel: Kesselformel σ = p·d/(2·s) hat 4 Variablen [sigma, p, d, s]
-  → Gib 3 Werte an: solve_kesselformel(p=10, d=100, sigma=160)
-  → Tool berechnet die 4. Variable (hier: s=3.125)
-
-📂 VERFÜGBARE KATEGORIEN:
+📂 VERFÜGBARE DOMAINS:
 - pressure: Druckbehälter, Kesselformeln
 - geometry: Flächen, Volumen, geometrische Berechnungen
 - materials: Werkstoffkennwerte, Festigkeitsberechnungen
-- (weitere Kategorien über get_available_categories() erkunden)
 
-💡 WICHTIG - Progressive Disclosure:
-- Beim Handshake siehst du nur 3 Discovery-Tools
-- Engineering-Tools sind registriert aber VERSTECKT
-- get_tool_details(tool_name) schaltet spezifisches Tool frei
-- Danach ist das Tool in ListTools sichtbar und aufrufbar
+💡 BEISPIEL-WORKFLOW:
+1. dispatch_engineering(domain="pressure", action="activate")
+2. execute_tool(tool_name="pressure.solve_kesselformel", parameters={"p": 10, "d": 100, "sigma": 160})
 
-🔍 BEISPIEL-WORKFLOW:
-1. categories = get_available_categories()
-2. tools = list_engineering_tools(category="pressure")
-3. details = get_tool_details(tool_name="solve_kesselformel")  # ⚡ SCHALTET FREI
-4. result = solve_kesselformel(p=10, d=100, sigma=160)  # JETZT VERFÜGBAR!
+⚙️ KERNKONZEPT:
+- Minimaler Handshake (nur 3 Tools)
+- Domain-basierte Tool-Aktivierung
+- Indirekte Tool-Ausführung über execute_tool
 """
 )
 
-# Session State für Progressive Disclosure
-_session_allowed_tools = set()
+# Session State für aktive Domain
+_session_state = {
+    "active_domain": None,
+    "allowed_tools": set()
+}
+
+# Registry für versteckte Engineering-Tools (NICHT bei MCP registriert!)
+_ENGINEERING_TOOLS = {}
 
 @mcp.tool()
 def clock() -> str:
-    "Aktuelle UTC-Zeit zurückgeben"
+    """Aktuelle UTC-Zeit zurückgeben"""
     return datetime.datetime.utcnow().isoformat() + "Z"
 
-# ===== Discovery Tools (IMMER sichtbar) =====
+# ===== DISPATCHER TOOL (immer sichtbar) =====
 
 @mcp.tool(
-    name="get_available_categories",
-    description="Gibt alle verfügbaren Engineering-Tool-Kategorien zurück. IMMER ZUERST AUFRUFEN!",
-    tags=["discovery", "categories", "meta"]
+    name="dispatch_engineering",
+    description="Wählt eine Engineering-Domain und aktiviert deren Tools. Domains: pressure, geometry, materials",
+    tags=["dispatcher", "meta"]
 )
-async def get_available_categories(
+async def dispatch_engineering(
+    domain: Literal["pressure", "geometry", "materials"],
+    action: Literal["list", "activate", "info"] = "activate",
     ctx: Context = None
 ) -> Dict:
     """
-    Listet alle verfügbaren Kategorien von Engineering-Tools auf.
+    Dispatcher für hierarchische Tool-Aktivierung.
     
     Args:
+        domain: Engineering-Domain (pressure, geometry, materials)
+        action: Aktion (list=Tools anzeigen, activate=Domain aktivieren, info=Domain-Info)
         ctx: FastMCP Context für Logging
         
     Returns:
-        Dict: Kategorien mit Tool-Anzahl und Beschreibungen
+        Dict: Aktivierte Domain und verfügbare Tools
     """
-    if ctx:
-        await ctx.info("Sammle verfügbare Tool-Kategorien...")
-    
-    # Hole Engineering-Tools aus versteckter Registry
-    tool_info = get_tool_info_for_llm(mcp_instance=mcp, hidden_registry=True)
-    
-    # Gruppiere nach Kategorien
-    categories_info = {}
-    
-    for tool in tool_info:
-        category = tool.get("category", "unknown")
-        
-        if category not in categories_info:
-            categories_info[category] = {
-                "name": category,
-                "tools": [],
-                "tool_count": 0,
-                "description": ""
-            }
-        
-        categories_info[category]["tools"].append(tool["name"])
-        categories_info[category]["tool_count"] += 1
-    
-    # Kategorie-Beschreibungen hinzufügen
-    from engineering_mcp.registry import get_category_description
-    for category, info in categories_info.items():
-        info["description"] = get_category_description(category)
+    global _session_state
     
     if ctx:
-        await ctx.info(f"Gefunden: {len(categories_info)} Kategorien")
+        await ctx.info(f"Dispatcher: Domain '{domain}', Action '{action}'")
     
-    return {
-        "available_categories": list(categories_info.keys()),
-        "category_details": categories_info,
-        "total_categories": len(categories_info),
-        "usage_hint": "Verwende diese Kategorien mit list_engineering_tools(category='...')",
-        "progressive_disclosure_status": {
-            "hidden_tools_available": len(tool_info),
-            "currently_unlocked": len(_session_allowed_tools),
-            "next_step": "Verwende list_engineering_tools(category='...') um Tools zu erkunden"
-        }
+    # Domain-spezifische Tool-Listen
+    domain_tools = {
+        "pressure": ["pressure.solve_kesselformel"],
+        "geometry": ["geometry.solve_circle_area"], 
+        "materials": []  # Noch keine Tools implementiert
     }
-
-@mcp.tool(
-    name="list_engineering_tools",
-    description="Listet alle Tools einer spezifischen Kategorie mit Kurzbeschreibungen auf",
-    tags=["discovery", "engineering", "meta"]
-)
-async def list_engineering_tools(
-    category: str,
-    ctx: Context = None
-) -> List[Dict]:
-    """
-    Listet alle verfügbaren Engineering-Tools einer Kategorie mit Kurzbeschreibungen auf.
     
-    Args:
-        category: Kategorie-Filter (z.B. "pressure", "geometry") - PFLICHTPARAMETER
-        ctx: FastMCP Context für Logging
-        
-    Returns:
-        List[Dict]: Tools mit Namen, Kurzbeschreibung und lösbaren Variablen
-    """
-    if ctx:
-        await ctx.info(f"Sammle Engineering-Tools für Kategorie: {category}")
-    
-    # Hole Engineering-Tools aus versteckter Registry
-    tool_info = get_tool_info_for_llm(mcp_instance=mcp, hidden_registry=True)
-    
-    # Filter nach Kategorie
-    filtered_tools = [tool for tool in tool_info if category in tool.get("tags", []) or category == tool.get("category")]
-    
-    # Kompakte Darstellung für Discovery
-    compact_tools = []
-    for tool in filtered_tools:
-        is_unlocked = tool["name"] in _session_allowed_tools
-        
-        compact_tools.append({
-            "name": tool["name"],
-            "short_description": tool.get("short_description", tool["description"].split(".")[0]),
-            "solvable_variables": tool["solvable_variables"],
-            "tags": tool["tags"],
-            "call_example": f"{tool['name']}(...)" if is_unlocked else f"get_tool_details('{tool['name']}')",
-            "status": "🔓 UNLOCKED - Ready to call" if is_unlocked else "🔒 LOCKED - Call get_tool_details() to unlock",
-            "unlock_hint": f"Nutze get_tool_details('{tool['name']}') um das Tool freizuschalten" if not is_unlocked else "Tool bereits freigeschaltet!"
-        })
-    
-    if ctx:
-        await ctx.info(f"Gefunden: {len(compact_tools)} Tools in Kategorie {category}")
-    
-    unlocked_count = sum(1 for tool in compact_tools if tool["name"] in _session_allowed_tools)
-    
-    return {
-        "tools": compact_tools,
-        "category": category,
-        "total_tools": len(compact_tools),
-        "unlocked_tools": unlocked_count,
-        "locked_tools": len(compact_tools) - unlocked_count,
-        "progressive_disclosure_hint": "Verwende get_tool_details(tool_name) um Tools freizuschalten"
+    domain_descriptions = {
+        "pressure": "Druckbehälter, Kesselformeln, Druckberechnungen",
+        "geometry": "Flächenberechnungen, Volumen, geometrische Formeln",
+        "materials": "Werkstoffkennwerte, Festigkeitsberechnungen (in Entwicklung)"
     }
-
-@mcp.tool(
-    name="get_tool_details",
-    description="Ruft detaillierte Informationen zu einem Tool ab und SCHALTET ES FREI für direkten Aufruf",
-    tags=["discovery", "engineering", "documentation", "meta", "unlock"]
-)
-async def get_tool_details(
-    tool_name: str,
-    ctx: Context = None
-) -> Dict:
-    """
-    Liefert vollständige Dokumentation eines Engineering-Tools und schaltet es für direkten Aufruf frei.
     
-    Args:
-        tool_name: Name des Tools (z.B. "solve_kesselformel")
-        ctx: FastMCP Context für Logging
-        
-    Returns:
-        Dict: Tool-Dokumentation + Freischaltung-Bestätigung
-    """
-    global _session_allowed_tools
-    
-    if ctx:
-        await ctx.info(f"Hole Details für Tool: {tool_name} und schalte es frei...")
-    
-    try:
-        details = await get_tool_details_from_mcp(tool_name, mcp_instance=mcp, hidden_registry=True)
-        
-        # ⚡ PROGRESSIVE DISCLOSURE: Tool in Session-Whitelist hinzufügen
-        _session_allowed_tools.add(tool_name)
-        
-        # Registriere das Tool jetzt DYNAMISCH bei FastMCP
-        await register_engineering_tool_dynamically(tool_name)
-        
-        if ctx:
-            await ctx.info(f"✅ Tool {tool_name} freigeschaltet und bei MCP registriert")
-        
-        # Erweiterte Antwort mit Freischaltung-Info
-        details["unlock_status"] = {
-            "unlocked": True,
-            "tool_name": tool_name,
-            "session_tools_unlocked": len(_session_allowed_tools),
-            "direct_call_available": True,
-            "message": f"✅ {tool_name} ist jetzt für direkten Aufruf verfügbar!",
-            "next_step": f"Du kannst jetzt {tool_name}(parameter=...) direkt aufrufen"
+    if action == "info":
+        # Informationen über alle Domains
+        return {
+            "available_domains": list(domain_tools.keys()),
+            "domain_details": {
+                d: {
+                    "description": domain_descriptions[d],
+                    "tool_count": len(domain_tools[d]),
+                    "status": "active" if domain_tools[d] else "in_development"
+                }
+                for d in domain_tools
+            },
+            "current_domain": _session_state.get("active_domain"),
+            "hint": "Verwende action='activate' um eine Domain zu aktivieren"
         }
-        
-        return details
-        
-    except ValueError as e:
-        if ctx:
-            await ctx.error(f"Tool nicht gefunden: {tool_name}")
+    
+    elif action == "list":
+        # Liste Tools der gewählten Domain
+        tools = domain_tools.get(domain, [])
+        tool_details = []
+        for tool_name in tools:
+            if tool_name in _ENGINEERING_TOOLS:
+                tool_details.append({
+                    "name": tool_name,
+                    "description": _ENGINEERING_TOOLS[tool_name]["description"],
+                    "parameters": _ENGINEERING_TOOLS[tool_name]["parameters"]
+                })
         
         return {
-            "error": str(e),
-            "available_tools": "Nutze list_engineering_tools() um verfügbare Tools zu sehen",
-            "unlock_status": {
-                "unlocked": False,
-                "error": f"Tool {tool_name} nicht gefunden"
-            }
+            "domain": domain,
+            "description": domain_descriptions.get(domain),
+            "tools": tool_details,
+            "tool_count": len(tools),
+            "hint": f"Verwende execute_tool(tool_name='...', parameters={{...}}) nach Aktivierung"
+        }
+    
+    elif action == "activate":
+        # Aktiviere Domain
+        _session_state["active_domain"] = domain
+        _session_state["allowed_tools"] = set(domain_tools.get(domain, []))
+        
+        if ctx:
+            await ctx.info(f"✅ Domain '{domain}' aktiviert mit {len(domain_tools.get(domain, []))} Tools")
+        
+        return {
+            "domain_activated": domain,
+            "description": domain_descriptions.get(domain),
+            "tools_available": list(_session_state["allowed_tools"]),
+            "message": f"✅ {domain.title()}-Tools sind jetzt über execute_tool verfügbar!",
+            "examples": get_domain_examples(domain)
         }
 
-async def register_engineering_tool_dynamically(tool_name: str):
-    """
-    Registriert ein Engineering-Tool dynamisch bei FastMCP nach der Freischaltung.
-    """
-    from engineering_mcp.registry import _HIDDEN_ENGINEERING_TOOLS
-    
-    if tool_name in _HIDDEN_ENGINEERING_TOOLS:
-        tool_metadata = _HIDDEN_ENGINEERING_TOOLS[tool_name]
-        tool_func = tool_metadata.get('function')
-        
-        if tool_func and callable(tool_func):
-            # Dynamische Registrierung bei FastMCP
-            mcp.tool(
-                name=tool_name,
-                description=tool_metadata.get('short_description', tool_metadata.get('description', '')),
-                tags=tool_metadata.get('tags', [])
-            )(tool_func)
-            
-            print(f"🔓 Dynamisch registriert: {tool_name} bei FastMCP")
+def get_domain_examples(domain: str) -> List[str]:
+    """Gibt Beispiel-Aufrufe für Domain-Tools zurück"""
+    examples = {
+        "pressure": [
+            'execute_tool(tool_name="pressure.solve_kesselformel", parameters={"p": 10, "d": 100, "sigma": 160})',
+            'execute_tool(tool_name="pressure.solve_kesselformel", parameters={"p": 10, "d": 100, "s": 5})'
+        ],
+        "geometry": [
+            'execute_tool(tool_name="geometry.solve_circle_area", parameters={"radius": 10})',
+            'execute_tool(tool_name="geometry.solve_circle_area", parameters={"area": 314.159})'
+        ],
+        "materials": []
+    }
+    return examples.get(domain, [])
 
-# Initialisierung beim Server-Start
-async def init_engineering_tools():
-    """Lädt Engineering-Tools und registriert sie VERSTECKT (nur in Registry)"""
-    global _session_allowed_tools
-    _session_allowed_tools = set()  # Reset session state
+# ===== EXECUTE TOOL (führt versteckte Tools aus) =====
+
+@mcp.tool(
+    name="execute_tool",
+    description="Führt ein aktiviertes Engineering-Tool mit den gegebenen Parametern aus",
+    tags=["executor", "engineering"]
+)
+async def execute_tool(
+    tool_name: str,
+    parameters: Dict[str, Any],
+    ctx: Context = None
+) -> Dict:
+    """
+    Führt ein Engineering-Tool aus der aktiven Domain aus.
     
-    # Lade Tools in versteckte Registry (NICHT bei MCP registrieren!)
-    tools_count = await discover_engineering_tools(mcp_instance=mcp, register_hidden=True)
-    print(f"🔐 {tools_count} Engineering-Tools in versteckter Registry geladen")
-    print(f"✅ 4 Discovery-Tools (immer sichtbar) bereit")
-    print(f"🎯 Progressive Tool Disclosure aktiviert:")
-    print(f"   ├─ Handshake: Nur 4 Tools sichtbar (clock + 3 Discovery)")
-    print(f"   ├─ Discovery: list_categories → list_tools → get_details")
-    print(f"   ├─ Freischaltung: get_tool_details() → Session-Whitelist + Dynamische MCP-Registrierung")
-    print(f"   └─ Direkter Aufruf: Tools nach Freischaltung verfügbar")
-    return tools_count 
+    Args:
+        tool_name: Name des Tools (z.B. "pressure.solve_kesselformel")
+        parameters: Dictionary mit Tool-Parametern
+        ctx: FastMCP Context
+        
+    Returns:
+        Dict: Ergebnis der Tool-Ausführung
+    """
+    global _session_state, _ENGINEERING_TOOLS
+    
+    # Prüfe ob Tool erlaubt ist
+    if tool_name not in _session_state["allowed_tools"]:
+        return {
+            "error": f"Tool '{tool_name}' ist nicht aktiviert",
+            "hint": "Aktiviere zuerst die passende Domain mit dispatch_engineering()",
+            "allowed_tools": list(_session_state["allowed_tools"])
+        }
+    
+    # Prüfe ob Tool existiert
+    if tool_name not in _ENGINEERING_TOOLS:
+        return {
+            "error": f"Tool '{tool_name}' nicht gefunden",
+            "available_tools": list(_ENGINEERING_TOOLS.keys())
+        }
+    
+    # Führe Tool aus
+    try:
+        tool_func = _ENGINEERING_TOOLS[tool_name]["function"]
+        result = await tool_func(**parameters, ctx=ctx)
+        return result
+    except Exception as e:
+        return {
+            "error": f"Fehler bei Tool-Ausführung: {str(e)}",
+            "tool": tool_name,
+            "parameters": parameters
+        }
+
+# ===== VERSTECKTE ENGINEERING TOOLS (nicht bei MCP registriert!) =====
+
+async def _solve_kesselformel(
+    sigma: Optional[float] = None,
+    p: Optional[float] = None,
+    d: Optional[float] = None,
+    s: Optional[float] = None,
+    ctx: Context = None
+) -> Dict:
+    """Interne Kesselformel-Berechnung"""
+    from sympy import symbols, Eq, solve, N
+    
+    # Validierung
+    provided = {k: v for k, v in {"sigma": sigma, "p": p, "d": d, "s": s}.items() if v is not None}
+    if len(provided) != 3:
+        raise ValueError("Genau 3 von 4 Parametern müssen angegeben werden")
+    
+    # SymPy Berechnung
+    sigma_sym, p_sym, d_sym, s_sym = symbols('sigma p d s', positive=True)
+    formula = Eq(sigma_sym, p_sym * d_sym / (2 * s_sym))
+    
+    # Finde unbekannte Variable
+    unknown_var = next(k for k in ["sigma", "p", "d", "s"] if k not in provided)
+    target_symbol = {"sigma": sigma_sym, "p": p_sym, "d": d_sym, "s": s_sym}[unknown_var]
+    
+    # Löse nach unbekannter Variable
+    solution_expr = solve(formula, target_symbol)[0]
+    
+    # Substitution
+    subs_dict = {
+        sigma_sym: sigma, p_sym: p, d_sym: d, s_sym: s
+    }
+    subs_dict = {k: v for k, v in subs_dict.items() if v is not None}
+    
+    result_value = float(N(solution_expr.subs(subs_dict)))
+    
+    # Einheit
+    units = {"sigma": "N/mm²", "p": "bar", "d": "mm", "s": "mm"}
+    
+    return {
+        "domain": "pressure",
+        "tool": "kesselformel",
+        "unknown_variable": unknown_var,
+        "result": result_value,
+        "unit": units[unknown_var],
+        "formula": "σ = p·d/(2·s)",
+        "input_parameters": provided
+    }
+
+async def _solve_circle_area(
+    area: Optional[float] = None,
+    radius: Optional[float] = None,
+    ctx: Context = None
+) -> Dict:
+    """Interne Kreisflächen-Berechnung"""
+    from sympy import symbols, Eq, solve, pi, N
+    
+    # Validierung
+    if (area is None) == (radius is None):
+        raise ValueError("Genau einer der Parameter (area oder radius) muss angegeben werden")
+    
+    # SymPy Berechnung
+    A, r = symbols('A r', positive=True)
+    formula = Eq(A, pi * r**2)
+    
+    if radius is not None:
+        # Berechne Fläche
+        result = float(N(pi * radius**2))
+        return {
+            "domain": "geometry", 
+            "tool": "circle_area",
+            "unknown_variable": "area",
+            "result": result,
+            "unit": "m²",
+            "formula": "A = π·r²",
+            "input_parameters": {"radius": radius}
+        }
+    else:
+        # Berechne Radius
+        solution = solve(formula.subs(A, area), r)[0]
+        result = float(N(solution))
+        return {
+            "domain": "geometry",
+            "tool": "circle_area", 
+            "unknown_variable": "radius",
+            "result": result,
+            "unit": "m",
+            "formula": "A = π·r² → r = √(A/π)",
+            "input_parameters": {"area": area}
+        }
+
+# Registriere versteckte Tools
+_ENGINEERING_TOOLS = {
+    "pressure.solve_kesselformel": {
+        "function": _solve_kesselformel,
+        "description": "Kesselformel σ = p·d/(2·s) - Löst nach einer der 4 Variablen auf",
+        "parameters": {
+            "sigma": "Spannung [N/mm²] (optional)",
+            "p": "Innendruck [bar] (optional)",
+            "d": "Innendurchmesser [mm] (optional)",
+            "s": "Wandstärke [mm] (optional)"
+        }
+    },
+    "geometry.solve_circle_area": {
+        "function": _solve_circle_area,
+        "description": "Kreisfläche A = π·r² - Berechnet Fläche aus Radius oder umgekehrt",
+        "parameters": {
+            "area": "Kreisfläche [m²] (optional)",
+            "radius": "Kreisradius [m] (optional)"
+        }
+    }
+}
+
+# Initialisierung
+def init_hierarchical_tools():
+    """Initialisiert das hierarchische Tool-System"""
+    global _session_state
+    _session_state = {
+        "active_domain": None,
+        "allowed_tools": set()
+    }
+    
+    print(f"🎯 Hierarchisches Tool-Schema mit Tool-Hiding aktiviert:")
+    print(f"   ├─ Handshake: 3 Tools sichtbar (clock, dispatcher, executor)")
+    print(f"   ├─ Domains: pressure, geometry, materials")
+    print(f"   ├─ Workflow: dispatch → execute_tool")
+    print(f"   └─ {len(_ENGINEERING_TOOLS)} Engineering-Tools versteckt")
+    
+    return 3  # clock, dispatch_engineering, execute_tool
+
+# Beim Import initialisieren
+init_hierarchical_tools() 
