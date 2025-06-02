@@ -1,5 +1,5 @@
 """
-[Tool Name] - [Kurzbeschreibung für MCP-Registrierung]
+[Tool Name] - [Kurzbeschreibung für list_engineering_tools]
 
 Löst die Formel [FORMEL] nach verschiedenen Variablen auf.
 Lösbare Variablen: [var1, var2, var3]
@@ -12,10 +12,6 @@ Parameter:
 - var3: [Beschreibung] [Einheit]
 
 Anwendungsbereich: [Wann wird diese Formel verwendet]
-
-WICHTIG: Dieses Tool wird automatisch direkt bei MCP registriert und kann
-nach Discovery über den Tool-Namen direkt aufgerufen werden:
-solve_tool_name(var1=..., var2=...)
 """
 
 from typing import Dict, Optional
@@ -119,10 +115,10 @@ async def solve_tool_name(
     }
 
 
-# Tool-Metadaten für automatische MCP-Registrierung
+# Tool-Metadaten für Registry
 TOOL_METADATA = {
     "name": "solve_tool_name",
-    "short_description": "[Kurze Beschreibung für MCP] - [Was das Tool macht]",
+    "short_description": "[Kurze Beschreibung] - [Was das Tool macht]",
     "description": """Löst [FORMEL] nach verschiedenen Variablen auf. Lösbare Variablen: [var1, var2, var3]
 
 [Ausführliche Beschreibung der Formel und ihres Anwendungsbereichs]
@@ -133,23 +129,19 @@ Parameter:
 - var3: [Detaillierte Beschreibung] [Einheit]
 
 Anwendungsbereich: [Wann und wo wird diese Formel verwendet]
-Einschränkungen: [Falls vorhanden, z.B. nur für positive Werte]
-
-Direkter Aufruf: solve_tool_name(var1=..., var2=...)""",
+Einschränkungen: [Falls vorhanden, z.B. nur für positive Werte]""",
     "tags": ["category", "engineering", "symbolic", "weitere_tags"],
     "function": solve_tool_name,
     "examples": [
         {
             "description": "Berechne var1 aus var2 und var3",
             "input": {"var2": 10, "var3": 20},
-            "expected_output": {"unknown_variable": "var1", "result": 200, "unit": "Einheit1"},
-            "direct_call": "solve_tool_name(var2=10, var3=20)"
+            "expected_output": {"unknown_variable": "var1", "result": 200, "unit": "Einheit1"}
         },
         {
             "description": "Berechne var2 aus var1 und var3",
             "input": {"var1": 200, "var3": 20},
-            "expected_output": {"unknown_variable": "var2", "result": 10, "unit": "Einheit2"},
-            "direct_call": "solve_tool_name(var1=200, var3=20)"
+            "expected_output": {"unknown_variable": "var2", "result": 10, "unit": "Einheit2"}
         }
     ]
 } 
