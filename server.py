@@ -12,6 +12,7 @@ from engineering_mcp.registry import (
     discover_engineering_tools,
     get_tool_details as get_tool_details_from_registry
 )
+from tools.tag_definitions import get_tag_definitions
 
 # Session State für sicheres Whitelisting
 _session_state = {
@@ -25,7 +26,7 @@ _session_state = {
 mcp = FastMCP(
     name="EngineersCalc", 
     instructions="""
-Engineering Calculation Server - Symbolische Ingenieurberechnungen
+Engineering Calculation Server - Berechnungstools und Informationen für Ingenieure
 
 Dieser Server bietet Zugriff auf eine Sammlung von Engineering-Tools, die Formeln 
 symbolisch nach verschiedenen Variablen auflösen können und diese numerisch auswerten können.
@@ -33,7 +34,7 @@ symbolisch nach verschiedenen Variablen auflösen können und diese numerisch au
 WICHTIGER WORKFLOW:
 1. Nutze IMMER zuerst 'get_available_categories' um verfügbare Kategorien zu sehen
 2. Dann 'list_engineering_tools' mit einer spezifischen Kategorie, um alle Tools einer Kategorie zu sehen.
-3. Verwende immer  'get_tool_details' für ausführliche Tool-Dokumentation, Bevor du eine Berechnung mittels call_tool durchführst
+3. Verwende immer  'get_tool_details' für ausführliche Tool-Dokumentation, bevor du eine Berechnung mittels call_tool durchführst
 4. Schließlich verwende 'call_tool' zur Ausführung.
 
 Bevor du eine Berechnung mittels calculate_engineering durchführst, verwende IMMER das tool get_tool_details:
@@ -41,8 +42,8 @@ Bevor du eine Berechnung mittels calculate_engineering durchführst, verwende IM
 2. um genau Informationen zu erhalten, wie du das tool mit calculate_engineering aufrufen musst.
 
 Die Tools verwenden SymPy für symbolische Mathematik und können Formeln nach 
-beliebigen Variablen auflösen. Gib immer genau n-1 Parameter an, wenn ein Tool 
-n lösbare Variablen hat.
+beliebigen Variablen auflösen und im Anschluss numerisch lösen. 
+Gib immer genau n-1 Parameter an, wenn ein Tool n lösbare Variablen hat.
 
 Beispiel: Kesselformel mit 4 Variablen [sigma, p, d, s] - gib 3 an, berechne die 4.
 
@@ -192,7 +193,7 @@ def _repair_arguments(raw: Any) -> dict:
 
 @mcp.tool(
     name="get_available_categories",
-    description="Gibt alle verfügbaren Engineering-Tool-Tags mit Beschreibungen zurück. IMMER ZUERST AUFRUFEN!",
+    description="Gibt alle verfügbaren Engineering-Tool-Tags (Kategorien) mit Beschreibungen zurück. Wird benötigt um die Kategorie für list_engineering_tools zu bestimmen.IMMER ZUERST AUFRUFEN!",
     tags=["meta"]
 )
 async def get_available_categories(
@@ -212,27 +213,8 @@ async def get_available_categories(
     if ctx:
         await ctx.info("📋 Sammle verfügbare Tool-Tags...")
     
-    # Definiere Tag-Schema mit Beschreibungen
-    tag_definitions = {
-        "meta": {
-            "name": "meta",
-            "description": "Discovery und Workflow-Tools für Tool-Exploration",
-            "tools": [],
-            "tool_count": 0
-        },
-        "elementar": {
-            "name": "elementar", 
-            "description": "Grundlegende geometrische und mathematische Berechnungen",
-            "tools": [],
-            "tool_count": 0
-        },
-        "mechanik": {
-            "name": "mechanik",
-            "description": "Spezialisierte Formeln aus Mechanik und Maschinenbau", 
-            "tools": [],
-            "tool_count": 0
-        }
-    }
+    # Hole Tag-Schema aus separater Datei
+    tag_definitions = get_tag_definitions()
     
     # Hole Engineering-Tools aus Registry
     tool_info = get_tool_info_for_llm(include_engineering=True)
@@ -269,7 +251,7 @@ async def get_available_categories(
 
 @mcp.tool(
     name="list_engineering_tools",
-    description="Listet alle Tools mit spezifischen Tags mit Kurzbeschreibungen auf",
+    description="Listet alle Tools mit spezifischen Tags (einer Kategorie)mit Kurzbeschreibungen auf",
     tags=["meta"]
 )
 async def list_engineering_tools(

@@ -130,7 +130,7 @@ Parameter:
 
 Anwendungsbereich: [Wann und wo wird diese Formel verwendet]
 Einschränkungen: [Falls vorhanden, z.B. nur für positive Werte]""",
-    "tags": ["category", "engineering", "symbolic", "weitere_tags"],
+    "tags": ["elementar"],  # Wähle: ["meta"] | ["elementar"] | ["mechanik"]
     "function": solve_tool_name,
     "examples": [
         {
@@ -144,4 +144,9 @@ Einschränkungen: [Falls vorhanden, z.B. nur für positive Werte]""",
             "expected_output": {"unknown_variable": "var2", "result": 10, "unit": "Einheit2"}
         }
     ]
-} 
+}
+
+# Tag-Zuordnung:
+# ["meta"]      - Discovery und Workflow-Tools (nur für server.py meta-functions)
+# ["elementar"] - Grundlegende geometrische und mathematische Berechnungen  
+# ["mechanik"]  - Spezialisierte Formeln aus Mechanik und Maschinenbau 

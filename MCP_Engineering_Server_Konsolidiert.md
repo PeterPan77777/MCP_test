@@ -2,7 +2,7 @@
 
 ## Übersicht
 
-Der MCP Engineering Server ist ein modularer Server für Ingenieurberechnungen mit einer **mehrstufigen Discovery-Architektur**. Diese Architektur minimiert die initiale Tool-Liste für LLMs und ermöglicht eine schrittweise Erkundung der verfügbaren Funktionen.
+Der MCP Engineering Server ist ein modularer Server für Ingenieurberechnungen mit einer **mehrstufigen Discovery-Architektur** basierend auf **Tags**. Diese Architektur minimiert die initiale Tool-Liste für LLMs und ermöglicht eine schrittweise Erkundung der verfügbaren Funktionen.
 
 ## Architektur-Prinzipien
 
@@ -13,34 +13,46 @@ LLM Handshake
     ↓
 4 Meta-Tools (kompakt)
     ↓
-Kategorien erkunden → Tools einer Kategorie → Tool-Details → Tool ausführen
+Tags erkunden → Tools mit Tags → Tool-Details → Tool ausführen
 ```
 
 ### Vorteile
 - **Skalierbarkeit**: Hunderte von Tools ohne Überlastung beim Handshake
 - **Progressive Discovery**: LLM erhält nur relevante Informationen
-- **Klare Organisation**: Tools nach Fachgebieten kategorisiert
+- **Tag-basierte Organisation**: Flexible Kategorisierung statt starrer Verzeichnisse
 - **Flexible Erweiterung**: Neue Tools ohne Core-Änderungen
+
+## Tag-System
+
+### Verfügbare Tags
+- **`meta`**: Discovery und Workflow-Tools für Tool-Exploration
+- **`elementar`**: Grundlegende geometrische und mathematische Berechnungen
+- **`mechanik`**: Spezialisierte Formeln aus Mechanik und Maschinenbau
+
+### Tag-Vorteile
+- **Flexibel**: Tools können mehrere Tags haben (derzeit auf 1 begrenzt)
+- **Erweiterbar**: Neue Tags einfach in `tools/tag_definitions.py` hinzufügbar
+- **Beschränkbar**: LLM-Zugriff kann auf bestimmte Tags limitiert werden
 
 ## Meta-Tools (beim Handshake sichtbar)
 
 ### 1. get_available_categories
 ```python
 @mcp.tool(
-    name="get_available_categories",
-    description="Gibt alle verfügbaren Engineering-Tool-Kategorien zurück"
+    name="get_available_categories", 
+    description="Gibt alle verfügbaren Engineering-Tool-Tags zurück"
 )
 ```
-**Zweck**: Einstiegspunkt - zeigt verfügbare Kategorien wie pressure, geometry, materials etc.
+**Zweck**: Einstiegspunkt - zeigt verfügbare Tags wie meta, elementar, mechanik.
 
 ### 2. list_engineering_tools
 ```python
 @mcp.tool(
     name="list_engineering_tools",
-    description="Listet alle Tools einer spezifischen Kategorie mit Kurzbeschreibungen auf"
+    description="Listet alle Tools mit spezifischen Tags mit Kurzbeschreibungen auf"
 )
 ```
-**Zweck**: Zeigt Tools einer Kategorie mit kompakter Beschreibung und lösbaren Variablen.
+**Zweck**: Zeigt Tools mit gewählten Tags, inkl. kompakter Beschreibung und lösbaren Variablen.
 
 ### 3. get_tool_details
 ```python
@@ -51,10 +63,10 @@ Kategorien erkunden → Tools einer Kategorie → Tool-Details → Tool ausführ
 ```
 **Zweck**: Liefert vollständige Dokumentation eines Tools inkl. Input/Output-Format, Beispiele und Verwendungshinweise.
 
-### 4. calculate_engineering
+### 4. call_tool
 ```python
 @mcp.tool(
-    name="calculate_engineering",
+    name="call_tool",
     description="Führt ein Engineering-Tool mit den angegebenen Parametern aus"
 )
 ```
@@ -62,19 +74,19 @@ Kategorien erkunden → Tools einer Kategorie → Tool-Details → Tool ausführ
 
 ## Workflow für LLMs
 
-### Schritt 1: Kategorien erkunden
+### Schritt 1: Tags erkunden
 ```python
-categories = await get_available_categories()
-# Ergebnis: ["pressure", "geometry", "materials", ...]
+tags = await get_available_categories()
+# Ergebnis: {"meta": {...}, "elementar": {...}, "mechanik": {...}}
 ```
 
-### Schritt 2: Tools einer Kategorie auflisten
+### Schritt 2: Tools mit Tags auflisten
 ```python
-tools = await list_engineering_tools(category="pressure")
+tools = await list_engineering_tools(tags=["elementar"])
 # Ergebnis: Liste mit Tool-Namen und Kurzbeschreibungen
 ```
 
-### Schritt 3: Tool-Details abrufen (optional)
+### Schritt 3: Tool-Details abrufen (**PFLICHT vor Tool-Aufruf**)
 ```python
 details = await get_tool_details(tool_name="solve_kesselformel")
 # Ergebnis: Vollständige Dokumentation, Parameter, Beispiele
@@ -82,7 +94,7 @@ details = await get_tool_details(tool_name="solve_kesselformel")
 
 ### Schritt 4: Tool ausführen
 ```python
-result = await calculate_engineering(
+result = await call_tool(
     tool_name="solve_kesselformel",
     parameters={"p": 10, "d": 100, "sigma": 160}
 )
@@ -123,7 +135,7 @@ TOOL_METADATA = {
     "name": "solve_tool_name",
     "short_description": "Kurze Beschreibung für Discovery",
     "description": "Vollständige Beschreibung mit Details",
-    "tags": ["category", "engineering", "symbolic"],
+    "tags": ["elementar"],  # Wähle: ["meta"] | ["elementar"] | ["mechanik"]
     "function": solve_tool_name,
     "examples": [...],
     "input_schema": {...},
@@ -137,15 +149,13 @@ TOOL_METADATA = {
 MCP_server_TEST/
 ├── server.py              # Meta-Tools und MCP-Konfiguration
 ├── web.py                 # Railway-kompatibler Entry-Point
-├── engineering_mcp/       # Core-Module
-│   ├── config.py         # Server-Konfiguration
-│   └── registry.py       # Tool-Registry und Discovery
-└── tools/                # Engineering-Tools nach Kategorien
-    ├── pressure/         # Druckberechnungen
-    │   └── kesselformel.py
-    ├── geometry/         # Geometrische Berechnungen
-    │   └── circle_area.py
-    └── materials/        # Werkstoffberechnungen
+├── tools/                 # Engineering-Tools organisiert in Unterordnern
+│   ├── tag_definitions.py # Tag-Schema und -Definitionen
+│   ├── pressure/          # Druckberechnungen (Tag: mechanik)
+│   │   └── kesselformel.py
+│   └── geometry/          # Geometrische Berechnungen (Tag: elementar)
+│       └── circle_area.py
+└── TOOL_TEMPLATE.py       # Template für neue Tools
 ```
 
 ## Konfiguration
@@ -168,22 +178,24 @@ starlette                   # Web Framework
 
 ## Neue Tools hinzufügen
 
-1. **Kategorie-Ordner** erstellen (falls nicht vorhanden)
-2. **Tool-Datei** nach Template erstellen
-3. **TOOL_METADATA** mit allen Informationen definieren
+1. **Tool-Datei** nach `TOOL_TEMPLATE.py` erstellen
+2. **Richtiges Tag** wählen: `["elementar"]`, `["mechanik"]` oder neues Tag in `tag_definitions.py`
+3. **TOOL_METADATA** mit korrektem Tag definieren
 4. **Server neu starten** - Tool wird automatisch entdeckt
 
 ## Best Practices
 
 ### Für Tool-Entwickler
 - **Konsistente Metadaten**: Kurz- und Langbeschreibung trennen
+- **Richtiges Tag**: `elementar` für Grundlagen, `mechanik` für Spezielles
 - **Klare Variablennamen**: Mathematische Konventionen befolgen
 - **Vollständige Beispiele**: Mindestens 2 Use-Cases dokumentieren
 - **Robuste Validierung**: Alle physikalischen Constraints prüfen
 
 ### Für LLM-Integration
-- **Immer mit Kategorien starten**: Nie direkt alle Tools laden
-- **Tool-Details bei Bedarf**: Nur wenn Parameter unklar sind
+- **Immer mit Tags starten**: Nie direkt alle Tools laden
+- **get_tool_details ist PFLICHT**: Vor jedem call_tool ausführen
+- **Tag-basierte Filterung**: Nur relevante Tools laden
 - **Fehlerbehandlung**: Status-Feld in Responses beachten
 - **Einheiten beachten**: Immer in Tool-Details dokumentiert
 
@@ -193,13 +205,14 @@ Der Server ist für Railway optimiert:
 - Nutzt PORT-Umgebungsvariable
 - Health-Check unter `/health`
 - Automatische Tool-Discovery beim Start
-- Keine Änderungen am bestehenden Setup nötig
+- Tag-basierte Tool-Organisation
 
 ## Zusammenfassung
 
 Der MCP Engineering Server bietet:
 - ✅ **Kompakter Handshake**: Nur 4 Meta-Tools initial sichtbar
-- ✅ **Progressive Discovery**: Schrittweise Tool-Erkundung
+- ✅ **Progressive Discovery**: Schrittweise Tool-Erkundung über Tags
+- ✅ **Tag-basierte Organisation**: Flexible Alternative zu Verzeichnissen
 - ✅ **Symbolische Berechnung**: Flexible Variablen-Auflösung
-- ✅ **Skalierbare Architektur**: Beliebig viele Tools möglich
+- ✅ **Skalierbare Architektur**: Beliebig viele Tools und Tags möglich
 - ✅ **Railway-kompatibel**: Läuft ohne Anpassungen 
