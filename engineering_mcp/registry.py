@@ -27,24 +27,30 @@ async def discover_engineering_tools() -> int:
     global _ENGINEERING_TOOLS_REGISTRY
     _ENGINEERING_TOOLS_REGISTRY.clear()
     
-    try:
-        # Dynamischer Import aller Tool-Module
-        import tools
+    def discover_tools_recursive(module_path, module_name_prefix, category_override=None):
+        """Rekursive Funktion zum Durchsuchen von Unterordnern"""
+        discovered_count = 0
         
-        # Iteriere durch alle Submodule in tools/
-        for category_finder, category_name, ispkg in pkgutil.iter_modules(tools.__path__, tools.__name__ + "."):
-            if ispkg:
-                # Importiere Kategorie-Modul (z.B. tools.pressure)
-                category_module = importlib.import_module(category_name)
-                
-                # Iteriere durch alle Tool-Module in der Kategorie
-                for tool_finder, tool_name, _ in pkgutil.iter_modules(
-                    category_module.__path__, 
-                    category_name + "."
-                ):
+        try:
+            for finder, name, ispkg in pkgutil.iter_modules(module_path, module_name_prefix + "."):
+                if ispkg:
+                    # Unterordner gefunden - rekursiv durchsuchen
+                    try:
+                        submodule = importlib.import_module(name)
+                        # Für geometry.Flaechen etc. - verwende 'geometry' als Kategorie
+                        subcategory = category_override if category_override else name.split('.')[-1]
+                        discovered_count += discover_tools_recursive(
+                            submodule.__path__, 
+                            name, 
+                            subcategory
+                        )
+                    except Exception as e:
+                        print(f"❌ Fehler beim Laden des Submoduls {name}: {e}")
+                else:
+                    # Tool-Modul gefunden
                     try:
                         # Importiere das Tool-Modul
-                        tool_module = importlib.import_module(tool_name)
+                        tool_module = importlib.import_module(name)
                         
                         # Neue Struktur: get_metadata() und calculate() Funktionen
                         if hasattr(tool_module, 'get_metadata') and hasattr(tool_module, 'calculate'):
@@ -54,22 +60,25 @@ async def discover_engineering_tools() -> int:
                                 
                                 if calculate_func and callable(calculate_func):
                                     # Speichere in separater Registry
-                                    tool_id = metadata.get('tool_name', tool_name.split('.')[-1])
+                                    tool_id = metadata.get('tool_name', name.split('.')[-1])
+                                    category = category_override if category_override else name.split('.')[-2]
+                                    
                                     _ENGINEERING_TOOLS_REGISTRY[tool_id] = {
                                         'name': tool_id,
                                         'description': metadata.get('description', ''),
                                         'short_description': metadata.get('short_description', ''),
                                         'tags': metadata.get('tags', []),
                                         'function': calculate_func,
-                                        'category': metadata.get('category', category_name.split('.')[-1]),
+                                        'category': category,
                                         'module': tool_module,
                                         'metadata': metadata,
                                         'calculation_type': metadata.get('calculation_type', 'unknown'),
                                         'has_symbolic_solving': metadata.get('has_symbolic_solving', True)
                                     }
-                                    print(f"✅ Entdeckt: {tool_id} in {category_name.split('.')[-1]}")
+                                    print(f"✅ Entdeckt: {tool_id} in {category}")
+                                    discovered_count += 1
                             except Exception as e:
-                                print(f"❌ Fehler beim Laden der Metadaten von {tool_name}: {e}")
+                                print(f"❌ Fehler beim Laden der Metadaten von {name}: {e}")
                         
                         # Alte Struktur: TOOL_METADATA (für Kompatibilität)
                         elif hasattr(tool_module, 'TOOL_METADATA'):
@@ -79,15 +88,29 @@ async def discover_engineering_tools() -> int:
                             if tool_func and callable(tool_func):
                                 # Speichere in separater Registry
                                 tool_id = metadata.get('name', tool_func.__name__)
+                                category = category_override if category_override else name.split('.')[-2]
+                                
                                 _ENGINEERING_TOOLS_REGISTRY[tool_id] = {
                                     **metadata,
-                                    'category': category_name.split('.')[-1],
+                                    'category': category,
                                     'module': tool_module
                                 }
-                                print(f"✅ Entdeckt: {tool_id} in {category_name.split('.')[-1]}")
+                                print(f"✅ Entdeckt: {tool_id} in {category}")
+                                discovered_count += 1
                     except Exception as e:
-                        print(f"❌ Fehler beim Laden von {tool_name}: {e}")
-                        
+                        print(f"❌ Fehler beim Laden von {name}: {e}")
+        except Exception as e:
+            print(f"❌ Fehler beim Durchsuchen von {module_name_prefix}: {e}")
+        
+        return discovered_count
+    
+    try:
+        # Dynamischer Import aller Tool-Module
+        import tools
+        
+        # Starte rekursive Suche ab tools/
+        total_discovered = discover_tools_recursive(tools.__path__, tools.__name__)
+        
     except ImportError:
         print("ℹ️ Keine Engineering-Tools gefunden (tools/ Verzeichnis fehlt)")
         return 0

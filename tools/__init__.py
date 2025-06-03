@@ -1,5 +1,5 @@
 """
 Engineering Tools Module
 
-Enthält alle symbolischen Engineering-Tools organisiert nach Kategorien.
+Enthält alle Engineering-Tools organisiert nach Kategorien.
 """ 
