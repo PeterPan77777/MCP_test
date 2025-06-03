@@ -33,9 +33,13 @@ symbolisch nach verschiedenen Variablen auflösen können und diese numerisch au
 
 WICHTIGER WORKFLOW:
 1. Nutze IMMER zuerst 'get_available_categories' um verfügbare Kategorien zu sehen
-2. Dann 'list_engineering_tools' mit einer spezifischen Kategorie, um alle Tools einer Kategorie zu sehen.
-3. Verwende immer  'get_tool_details' für ausführliche Tool-Dokumentation, bevor du eine Berechnung mittels call_tool durchführst
+2. Dann 'list_engineering_tools' mit einer spezifischen Kategorie ODER mit tags=["all"] für alle Tools
+3. Verwende immer 'get_tool_details' für ausführliche Tool-Dokumentation, bevor du eine Berechnung mittels call_tool durchführst
 4. Schließlich verwende 'call_tool' zur Ausführung.
+
+💡 SCHNELLSTART-OPTION:
+• Für vollständige Übersicht: list_engineering_tools(tags=["all"])
+• Für spezifische Kategorie: list_engineering_tools(tags=["elementar"])
 
 Bevor du eine Berechnung mittels calculate_engineering durchführst, verwende IMMER das tool get_tool_details:
 1. um das tool zu aktivieren (ohne get_tool_details bleibt das tool deaktiviert)
@@ -316,7 +320,21 @@ async def get_available_categories(
 
 @mcp.tool(
     name="list_engineering_tools",
-    description="Listet alle Tools mit spezifischen Tags (einer Kategorie)mit Kurzbeschreibungen auf",
+    description="""Listet Engineering-Tools auf - entweder nach spezifischen Tags oder alle verfügbaren Tools
+
+📋 VERWENDUNGSMÖGLICHKEITEN:
+1. Mit spezifischen Tags: list_engineering_tools(tags=["elementar"]) 
+2. Alle Tools anzeigen: list_engineering_tools(tags=["all"])
+
+🏷️ Verfügbare Tag-Filter:
+• ["elementar"] - Grundlegende geometrische Berechnungen (Flächen, Volumen, Umfang)
+• ["mechanik"] - Mechanische Berechnungen (Kesselformel, Spannungen)
+• ["Fläche"] - Nur Flächenberechnungen
+• ["Volumen"] - Nur Volumenberechnungen  
+• ["Umfang"] - Nur Umfangsberechnungen
+• ["all"] - Alle verfügbaren Tools anzeigen
+
+💡 EMPFEHLUNG: Nutze ["all"] um eine vollständige Übersicht zu erhalten!""",
     tags=["meta"]
 )
 async def list_engineering_tools(
@@ -324,10 +342,10 @@ async def list_engineering_tools(
     ctx: Context = None
 ) -> List[Dict]:
     """
-    Listet alle verfügbaren Engineering-Tools mit spezifischen Tags auf.
+    Listet alle verfügbaren Engineering-Tools mit spezifischen Tags auf oder alle Tools.
     
     Args:
-        tags: Tag-Filter (z.B. ["elementar"], ["mechanik"] oder ["elementar", "mechanik"]) - PFLICHTPARAMETER
+        tags: Tag-Filter (z.B. ["elementar"], ["mechanik"] oder ["all"] für alle Tools) - PFLICHTPARAMETER
         ctx: FastMCP Context für Logging
         
     Returns:
@@ -335,18 +353,29 @@ async def list_engineering_tools(
     """
     global _session_state
     
+    # Spezielle Behandlung für "all" Tag
+    show_all = "all" in tags
+    
     if ctx:
-        await ctx.info(f"📂 Sammle Engineering-Tools für Tags: {tags}")
+        if show_all:
+            await ctx.info(f"📂 Sammle ALLE verfügbaren Engineering-Tools")
+        else:
+            await ctx.info(f"📂 Sammle Engineering-Tools für Tags: {tags}")
     
     # Hole Engineering-Tools aus separater Registry
     tool_info = get_tool_info_for_llm(include_engineering=True)
     
-    # Filter nach Tags (Tool muss mindestens einen der angegebenen Tags haben)
-    filtered_tools = []
-    for tool in tool_info:
-        tool_tags = tool.get("tags", [])
-        if any(tag in tool_tags for tag in tags):
-            filtered_tools.append(tool)
+    # Filter nach Tags oder zeige alle
+    if show_all:
+        # Zeige alle Tools
+        filtered_tools = tool_info
+    else:
+        # Filter nach Tags (Tool muss mindestens einen der angegebenen Tags haben)
+        filtered_tools = []
+        for tool in tool_info:
+            tool_tags = tool.get("tags", [])
+            if any(tag in tool_tags for tag in tags):
+                filtered_tools.append(tool)
     
     # Kompakte Darstellung für Discovery
     compact_tools = []
@@ -359,22 +388,52 @@ async def list_engineering_tools(
             "category": tool["category"]
         })
     
+    # Sortiere Tools nach Kategorie und Name für bessere Übersicht
+    compact_tools.sort(key=lambda x: (x["category"], x["name"]))
+    
     # Session-Tracking
     tool_names = [tool["name"] for tool in compact_tools]
     _session_state["viewed_functions"].update(tool_names)
     
     if ctx:
-        await ctx.info(f"Gefunden: {len(compact_tools)} Tools mit Tags {tags}")
+        if show_all:
+            await ctx.info(f"✅ Alle Tools gefunden: {len(compact_tools)} Engineering-Tools verfügbar")
+        else:
+            await ctx.info(f"Gefunden: {len(compact_tools)} Tools mit Tags {tags}")
     
-    return {
-        "step": 2,
-        "requested_tags": tags,
-        "tools": compact_tools,
-        "tool_count": len(compact_tools),
-        "next_step": "3️⃣ get_tool_details(tool_name='...')",
-        "workflow": "1️⃣ ✓ → 2️⃣ ✓ list_tools → 3️⃣ get_details → 4️⃣ calculate",
-        "hint": "Wähle einen tool_name aus der Liste für get_tool_details()"
-    }
+    # Erweiterte Antwort für "all" Tag
+    if show_all:
+        # Gruppiere nach Kategorien für bessere Übersicht
+        categories = {}
+        for tool in compact_tools:
+            cat = tool["category"]
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append(tool)
+        
+        return {
+            "step": 2,
+            "mode": "all_tools",
+            "total_tools": len(compact_tools),
+            "categories": categories,
+            "category_summary": {cat: len(tools) for cat, tools in categories.items()},
+            "all_tools": compact_tools,
+            "next_step": "3️⃣ get_tool_details(tool_name='...')",
+            "workflow": "1️⃣ ✓ → 2️⃣ ✓ list_tools(all) → 3️⃣ get_details → 4️⃣ calculate",
+            "hint": "Wähle einen tool_name aus der vollständigen Liste für get_tool_details()",
+            "tip": "📋 Die Tools sind nach Kategorien gruppiert für bessere Übersicht"
+        }
+    else:
+        # Standard-Antwort für spezifische Tags
+        return {
+            "step": 2,
+            "requested_tags": tags,
+            "tools": compact_tools,
+            "tool_count": len(compact_tools),
+            "next_step": "3️⃣ get_tool_details(tool_name='...')",
+            "workflow": "1️⃣ ✓ → 2️⃣ ✓ list_tools → 3️⃣ get_details → 4️⃣ calculate",
+            "hint": "Wähle einen tool_name aus der Liste für get_tool_details()"
+        }
 
 @mcp.tool(
     name="get_tool_details",
@@ -459,37 +518,6 @@ async def get_tool_details(
 4. Code-Fence: ```json {"pressure": "100 bar"} ```
 5. n8n-Workflow-JSON (automatische Extraktion)
 6. Verschachtelte JSON-Strukturen (automatische Suche)
-
-!!!! Immer beachten:
-
-Wenn du das tool: "call_tool" verwendest und Eingabeparameter definieren musst, halte Dich zwingend an folgende Regel:
-Definiere alle Eingabeparameter IMMER als Eigenschaft im Objekt "parameters".Jede Eigenschaft ist ein Key-Value-Pair.
-
-Du musst zwingend immer dieses Format für die Parameter verwenden:
-Beispiel:
-"query": 
-{
-"tool_name": 
-"solve_kesselformel",
-"parameters": 
-{
-"pressure": 
-"100 bar",
-"wall_thickness": 
-"50 mm",
-"allowable_stress": 
-"100 N/mm²"
-}
-
-verwende niemals dieses Format:
-Beispiel:
-"query": 
-{
-"tool_name": 
-"solve_kesselformel",
-"parameters": 
-"pressure="100 bar", wall_thickness="50 mm", allowable_stress="100 N/mm²""
-}
 
 ✅ KORREKTE BEISPIELE:
 • call_tool(tool_name="solve_kesselformel", parameters={"pressure": "100 bar", "wall_thickness": "50 mm", "allowable_stress": "200 MPa"})

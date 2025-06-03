@@ -27,6 +27,24 @@ TAG_DEFINITIONS = {
         "description": "Spezialisierte Formeln aus Mechanik und Maschinenbau", 
         "tools": [],
         "tool_count": 0
+    },
+    "tabellenwerk": {
+        "name": "tabellenwerk",
+        "description": "Tabellen-basierte Nachschlagewerke und Normwerte ohne Berechnungen",
+        "tools": [],
+        "tool_count": 0
+    },
+    "schrauben": {
+        "name": "schrauben",
+        "description": "Schraubenverbindungen, Durchgangslöcher und Gewindeberechnungen",
+        "tools": [],
+        "tool_count": 0
+    },
+    "normwerte": {
+        "name": "normwerte", 
+        "description": "DIN-, ISO- und andere Normwerte für Engineering-Anwendungen",
+        "tools": [],
+        "tool_count": 0
     }
 }
 

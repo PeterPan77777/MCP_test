@@ -6,7 +6,7 @@ Berechnet [BESCHREIBUNG] mit automatischer Einheiten-Konvertierung.
 Alle Eingaben MÜSSEN mit Einheiten angegeben werden.
 
 Löst die Formel [FORMEL] nach verschiedenen Variablen auf.
-Lösbare Variablen: [var1, var2, var3]
+Lösbare Variablen: var1, var2, var3
 
 [Detaillierte Beschreibung der Formel, Anwendungsbereich, physikalische Bedeutung]
 """
@@ -17,7 +17,7 @@ import os
 
 # Import des Einheiten-Utilities
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from units_utils import validate_inputs_have_units, optimize_output_unit, UnitsError, ureg
+from tools.units_utils import validate_inputs_have_units, optimize_output_unit, UnitsError, ureg
 
 def solve_tool_name(
     var1: Optional[str] = None,
@@ -182,7 +182,7 @@ def solve_tool_name(
 TOOL_METADATA = {
     "name": "solve_tool_name",
     "short_description": "[Kurze Beschreibung] - [Was das Tool macht]",
-    "description": """Löst [FORMEL] nach verschiedenen Variablen auf. Lösbare Variablen: [var1, var2, var3]
+    "description": """Löst [FORMEL] nach verschiedenen Variablen auf. Lösbare Variablen: var1, var2, var3
 
 WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
 Format: "Wert Einheit" (z.B. "5.2 mm", "10 cm", "25.5 cm²")
@@ -196,7 +196,7 @@ Parameter:
 
 Anwendungsbereich: [Wann und wo wird diese Formel verwendet]
 Einschränkungen: [Falls vorhanden, z.B. nur für positive Werte]""",
-    "tags": ["elementar", "Fläche"],  # ["elementar", "Fläche"] | ["elementar", "Volumen"]
+    "tags": ["elementar", "Fläche"],  # ["elementar", "Fläche"] | ["elementar", "Volumen"] | ["mechanik"]
     "function": solve_tool_name,
     "examples": [
         {

@@ -46,8 +46,33 @@ async def discover_engineering_tools() -> int:
                         # Importiere das Tool-Modul
                         tool_module = importlib.import_module(tool_name)
                         
-                        # Suche nach TOOL_METADATA
-                        if hasattr(tool_module, 'TOOL_METADATA'):
+                        # Neue Struktur: get_metadata() und calculate() Funktionen
+                        if hasattr(tool_module, 'get_metadata') and hasattr(tool_module, 'calculate'):
+                            try:
+                                metadata = tool_module.get_metadata()
+                                calculate_func = tool_module.calculate
+                                
+                                if calculate_func and callable(calculate_func):
+                                    # Speichere in separater Registry
+                                    tool_id = metadata.get('tool_name', tool_name.split('.')[-1])
+                                    _ENGINEERING_TOOLS_REGISTRY[tool_id] = {
+                                        'name': tool_id,
+                                        'description': metadata.get('description', ''),
+                                        'short_description': metadata.get('short_description', ''),
+                                        'tags': metadata.get('tags', []),
+                                        'function': calculate_func,
+                                        'category': metadata.get('category', category_name.split('.')[-1]),
+                                        'module': tool_module,
+                                        'metadata': metadata,
+                                        'calculation_type': metadata.get('calculation_type', 'unknown'),
+                                        'has_symbolic_solving': metadata.get('has_symbolic_solving', True)
+                                    }
+                                    print(f"✅ Entdeckt: {tool_id} in {category_name.split('.')[-1]}")
+                            except Exception as e:
+                                print(f"❌ Fehler beim Laden der Metadaten von {tool_name}: {e}")
+                        
+                        # Alte Struktur: TOOL_METADATA (für Kompatibilität)
+                        elif hasattr(tool_module, 'TOOL_METADATA'):
                             metadata = tool_module.TOOL_METADATA
                             tool_func = metadata.get('function')
                             
@@ -84,23 +109,30 @@ def get_tool_info_for_llm(include_engineering: bool = True) -> List[Dict]:
     
     if include_engineering:
         for tool_name, tool_data in _ENGINEERING_TOOLS_REGISTRY.items():
-            # Extrahiere lösbare Variablen aus der Beschreibung
-            solvable_vars = []
+            # Verarbeite verschiedene Tool-Strukturen
             description = tool_data.get('description', '')
             
-            # Parse: "Lösbare Variablen: [var1, var2, var3]"
-            match = re.search(r'Lösbare Variablen:\s*\[([^\]]+)\]', description)
-            if match:
-                vars_str = match.group(1)
-                solvable_vars = [var.strip() for var in vars_str.split(',')]
+            # Für neue Tool-Struktur: Extrahiere solvable_variables aus Metadaten
+            solvable_vars = []
+            if 'metadata' in tool_data and 'parameters' in tool_data['metadata']:
+                # Neue Struktur: Parameters in Metadaten
+                solvable_vars = list(tool_data['metadata']['parameters'].keys())
+            else:
+                # Fallback: Parse aus Beschreibung
+                match = re.search(r'Lösbare Variablen:\s*\[([^\]]+)\]', description)
+                if match:
+                    vars_str = match.group(1)
+                    solvable_vars = [var.strip() for var in vars_str.split(',')]
             
             tool_info.append({
                 "name": tool_name,
                 "description": description,
+                "short_description": tool_data.get('short_description', description.split('.')[0]),
                 "tags": tool_data.get('tags', []),
                 "category": tool_data.get('category', 'unknown'),
                 "solvable_variables": solvable_vars,
-                "is_symbolic": "symbolic" in tool_data.get('tags', []),
+                "is_symbolic": tool_data.get('has_symbolic_solving', True),
+                "calculation_type": tool_data.get('calculation_type', 'unknown'),
                 "source": "engineering_registry"
             })
     
@@ -261,26 +293,36 @@ async def get_tool_details(tool_name: str) -> Dict:
     
     # Basis-Informationen
     details = {
+        "tool_name": tool_name,
         "name": tool_name,
         "category": tool_data.get('category', 'unknown'),
         "tags": tool_data.get('tags', []),
-        "short_description": tool_data.get('short_description', tool_data['description'].split('.')[0]),
+        "short_description": tool_data.get('short_description', tool_data.get('description', '').split('.')[0]),
         "full_description": tool_data.get('description', ''),
-        "solvable_variables": extract_solvable_variables(tool_data.get('description', ''))
+        "calculation_type": tool_data.get('calculation_type', 'unknown'),
+        "has_symbolic_solving": tool_data.get('has_symbolic_solving', True)
     }
     
-    # Erweiterte Informationen falls vorhanden
-    if 'examples' in tool_data:
-        details['examples'] = tool_data['examples']
-    
-    if 'input_schema' in tool_data:
-        details['input_schema'] = tool_data['input_schema']
-    
-    if 'output_schema' in tool_data:
-        details['output_schema'] = tool_data['output_schema']
+    # Extrahiere solvable_variables - neue Struktur vs alte Struktur
+    if 'metadata' in tool_data and 'parameters' in tool_data['metadata']:
+        # Neue Struktur: Parameters in Metadaten
+        details['solvable_variables'] = list(tool_data['metadata']['parameters'].keys())
+        
+        # Weitere Metadaten aus neuer Struktur
+        metadata = tool_data['metadata']
+        if 'examples' in metadata:
+            details['examples'] = metadata['examples']
+        if 'parameters' in metadata:
+            details['parameters'] = metadata['parameters']
+        if 'output' in metadata:
+            details['output'] = metadata['output']
+    else:
+        # Alte Struktur: Parse aus Beschreibung
+        details['solvable_variables'] = extract_solvable_variables(tool_data.get('description', ''))
     
     # Standard Input/Output Schema basierend auf lösbaren Variablen
-    if 'input_schema' not in details and details['solvable_variables']:
+    if details.get('solvable_variables') and tool_data.get('has_symbolic_solving', True):
+        # Nur für symbolische Tools n-1 Parameter Schema
         details['input_schema'] = {
             "type": "object",
             "properties": {
@@ -294,8 +336,7 @@ async def get_tool_details(tool_name: str) -> Dict:
             "maxProperties": len(details['solvable_variables']) - 1,
             "description": f"Genau {len(details['solvable_variables']) - 1} von {len(details['solvable_variables'])} Parametern müssen angegeben werden"
         }
-    
-    if 'output_schema' not in details:
+        
         details['output_schema'] = {
             "type": "object",
             "properties": {
@@ -307,53 +348,75 @@ async def get_tool_details(tool_name: str) -> Dict:
                 "calculation_steps": {"type": "string", "description": "Berechnungsschritte"}
             }
         }
-    
-    # Verwendungshinweise generieren
-    if details['solvable_variables']:
+        
+        # Verwendungshinweise für symbolische Tools
         details['usage_hints'] = []
         for i, var in enumerate(details['solvable_variables']):
             other_vars = [v for v in details['solvable_variables'] if v != var]
             details['usage_hints'].append(
                 f"Um {var} zu berechnen: Gib {', '.join(other_vars)} an"
             )
+    elif tool_data.get('calculation_type') == 'table_lookup':
+        # Spezielle Behandlung für Tabellen-Tools
+        details['usage_hints'] = [
+            "Dies ist ein Tabellen-Lookup-Tool ohne symbolische Berechnung",
+            "Alle Parameter sind erforderlich",
+            "Gibt feste Normwerte zurück"
+        ]
+        
+        # Parameter-Schema aus Metadaten
+        if 'parameters' in details:
+            details['input_schema'] = {
+                "type": "object", 
+                "properties": details['parameters'],
+                "required": list(details['parameters'].keys()),
+                "additionalProperties": False
+            }
     
-    # ⭐ PARAMETER-FORMAT-HINWEIS hinzufügen
-    details['parameter_format'] = {
-        "wichtig": "🎯 Alle Parameter benötigen EINHEITEN! Format: 'Wert Einheit'",
-        "korrekte_beispiele": [
-            '"100 bar"', '"50 mm"', '"200 MPa"', '"5 cm"', '"25.5 cm²"', '"523 cm³"'
-        ],
-        "falsche_beispiele": [
-            "100 (ohne Einheit)", "50.0 (ohne Einheit)", "null (leer)"
-        ],
-        "tolerante_eingabe": "Der Server kann verschiedene Formate reparieren, aber korrekte JSON-Syntax ist am sichersten"
-    }
-    
-    # Generiere spezifisches Beispiel basierend auf lösbaren Variablen
-    if details['solvable_variables'] and len(details['solvable_variables']) >= 2:
-        example_params = {}
-        example_units = {
-            'pressure': '"100 bar"',
-            'wall_thickness': '"50 mm"', 
-            'diameter': '"500 mm"',
-            'allowable_stress': '"200 MPa"',
-            'radius': '"25 mm"',
-            'area': '"25.5 cm²"',
-            'volume': '"523 cm³"',
-            'height': '"10 cm"',
-            'width': '"5 cm"',
-            'length': '"10 cm"',
-            'side_a': '"8 cm"',
-            'side_c': '"12 cm"',
-            'base': '"6 cm"'
+    # ⭐ PARAMETER-FORMAT-HINWEIS hinzufügen (nur für Tools mit Einheiten)
+    if tool_data.get('has_symbolic_solving', True):
+        details['parameter_format'] = {
+            "wichtig": "🎯 Alle Parameter benötigen EINHEITEN! Format: 'Wert Einheit'",
+            "korrekte_beispiele": [
+                '"100 bar"', '"50 mm"', '"200 MPa"', '"5 cm"', '"25.5 cm²"', '"523 cm³"'
+            ],
+            "falsche_beispiele": [
+                "100 (ohne Einheit)", "50.0 (ohne Einheit)", "null (leer)"
+            ],
+            "tolerante_eingabe": "Der Server kann verschiedene Formate reparieren, aber korrekte JSON-Syntax ist am sichersten"
         }
         
-        # Verwende die ersten n-1 Variablen für das Beispiel
-        example_vars = details['solvable_variables'][:-1]
-        for var in example_vars:
-            # Finde passende Einheit oder verwende Fallback
-            example_params[var] = example_units.get(var, '"10 unit"')
-        
-        details['parameter_format']['korrekte_aufruf_syntax'] = f'call_tool(tool_name="{tool_name}", parameters={example_params})'
+        # Generiere spezifisches Beispiel basierend auf lösbaren Variablen
+        if details.get('solvable_variables') and len(details['solvable_variables']) >= 2:
+            example_params = {}
+            example_units = {
+                'pressure': '"100 bar"',
+                'wall_thickness': '"50 mm"', 
+                'diameter': '"500 mm"',
+                'allowable_stress': '"200 MPa"',
+                'radius': '"25 mm"',
+                'area': '"25.5 cm²"',
+                'volume': '"523 cm³"',
+                'height': '"10 cm"',
+                'width': '"5 cm"',
+                'length': '"10 cm"',
+                'side_a': '"8 cm"',
+                'side_c': '"12 cm"',
+                'base': '"6 cm"'
+            }
+            
+            # Verwende die ersten n-1 Variablen für das Beispiel
+            example_vars = details['solvable_variables'][:-1]
+            for var in example_vars:
+                # Finde passende Einheit oder verwende Fallback
+                example_params[var] = example_units.get(var, '"10 unit"')
+            
+            details['parameter_format']['korrekte_aufruf_syntax'] = f'call_tool(tool_name="{tool_name}", parameters={example_params})'
+    else:
+        # Für nicht-symbolische Tools (wie Tabellen-Lookup)
+        details['parameter_format'] = {
+            "wichtig": "🔧 Tabellen-Tool: Gib exakte Parameter-Werte an",
+            "hinweis": "Keine Einheiten erforderlich - direkte Werte verwenden"
+        }
     
     return details 
