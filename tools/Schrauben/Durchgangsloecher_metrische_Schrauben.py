@@ -87,45 +87,51 @@ def get_metadata() -> Dict[str, Any]:
         "description": (
             "Stellt Normwerte für Durchgangslöcher metrischer Schrauben bereit. "
             "WICHTIG: Keine symbolische Berechnung - reine Tabellen-Abfrage mit festen DIN-Normwerten. "
-            "Verfügbare Schraubengrößen: M6 bis M150. Verfügbare Lochklassen: fein, mittel, grob."
+            "Verfügbare Schraubengrößen: M6 bis M150. Verfügbare Lochklassen: fein, mittel, grob. "
+            "ERWEITERT: Unterstützt 'all' für komplette Tabellen-Übersichten."
         ),
-        "version": "1.0.0",
+        "version": "1.1.0",
         "parameters": {
             "screw_size": {
                 "type": "string",
-                "description": "Schraubengröße (z.B. 'M6', 'M10', 'M20')",
+                "description": "Schraubengröße (z.B. 'M6', 'M10', 'M20') oder 'all' für alle Größen",
                 "example": "M10",
-                "allowed_values": list(DURCHGANGSLOCH_TABELLE.keys())
+                "allowed_values": list(DURCHGANGSLOCH_TABELLE.keys()) + ["all"]
             },
             "hole_class": {
                 "type": "string", 
-                "description": "Lochklasse für Durchgangsloch",
+                "description": "Lochklasse ('fein', 'mittel', 'grob') oder 'all' für alle Klassen",
                 "example": "mittel",
-                "allowed_values": ["fein", "mittel", "grob"]
+                "allowed_values": ["fein", "mittel", "grob", "all"]
             }
         },
         "output": {
             "diameter": {
-                "type": "Quantity",
-                "description": "Durchmesser des Durchgangslochs",
+                "type": "Quantity or Dict",
+                "description": "Durchmesser des Durchgangslochs oder Tabelle mit mehreren Werten",
                 "unit": "mm"
             }
         },
         "examples": [
             {
-                "title": "M10 Schraube, mittlere Lochklasse",
+                "title": "Einzelner Wert: M10 Schraube, mittlere Lochklasse",
                 "input": {"screw_size": "M10", "hole_class": "mittel"},
                 "output": {"diameter": "11.0 mm"}
             },
             {
-                "title": "M20 Schraube, grobe Lochklasse",
-                "input": {"screw_size": "M20", "hole_class": "grob"},
-                "output": {"diameter": "24.0 mm"}
+                "title": "Alle Lochklassen für M20",
+                "input": {"screw_size": "M20", "hole_class": "all"},
+                "output": {"table": {"M20": {"fein": "21.0 mm", "mittel": "22.0 mm", "grob": "24.0 mm"}}}
             },
             {
-                "title": "M6 Schraube, feine Lochklasse", 
-                "input": {"screw_size": "M6", "hole_class": "fein"},
-                "output": {"diameter": "6.4 mm"}
+                "title": "Alle Schraubengrößen für mittlere Lochklasse",
+                "input": {"screw_size": "all", "hole_class": "mittel"},
+                "output": {"table": {"M6": "6.6 mm", "M8": "9.0 mm", "M10": "11.0 mm"}}
+            },
+            {
+                "title": "Komplette Tabelle",
+                "input": {"screw_size": "all", "hole_class": "all"},
+                "output": {"table": "Vollständige DIN-Normwerte-Tabelle"}
             }
         ],
         "mathematical_foundation": (
@@ -156,12 +162,17 @@ def calculate(**kwargs) -> Dict[str, Any]:
     
     WICHTIG: Dies ist eine reine Tabellen-Abfrage, KEINE Berechnung!
     
+    ERWEITERT: Unterstützt jetzt auch "all" für Tabellen-Übersichten:
+    - screw_size="all", hole_class="mittel" → Alle Schrauben für mittlere Klasse
+    - screw_size="M10", hole_class="all" → Alle Klassen für M10
+    - screw_size="all", hole_class="all" → Komplette Tabelle
+    
     Args:
-        screw_size (str): Schraubengröße (z.B. "M10")
-        hole_class (str): Lochklasse ("fein", "mittel", "grob")
+        screw_size (str): Schraubengröße (z.B. "M10") oder "all"
+        hole_class (str): Lochklasse ("fein", "mittel", "grob") oder "all"
         
     Returns:
-        Dict mit Durchgangsloch-Durchmesser
+        Dict mit Durchgangsloch-Durchmesser(n)
         
     Raises:
         ValueError: Bei ungültigen Eingabeparametern
@@ -173,41 +184,103 @@ def calculate(**kwargs) -> Dict[str, Any]:
         if param not in kwargs:
             raise ValueError(f"Pflichtparameter '{param}' fehlt")
     
-    screw_size = kwargs["screw_size"].strip().upper()
+    screw_size = kwargs["screw_size"].strip().lower()
     hole_class = kwargs["hole_class"].strip().lower()
     
-    # Schraubengröße validieren
-    if screw_size not in DURCHGANGSLOCH_TABELLE:
-        available_sizes = ", ".join(sorted(DURCHGANGSLOCH_TABELLE.keys(), 
-                                         key=lambda x: int(x[1:])))  # Nach Nummer sortieren
-        raise ValueError(
-            f"Unbekannte Schraubengröße: {screw_size}. "
-            f"Verfügbare Größen: {available_sizes}"
-        )
+    # === TABELLEN-ABFRAGEN (mit "all") ===
     
-    # Lochklasse validieren
-    if hole_class not in ["fein", "mittel", "grob"]:
-        raise ValueError(
-            f"Unbekannte Lochklasse: {hole_class}. "
-            f"Verfügbare Klassen: fein, mittel, grob"
-        )
+    if screw_size == "all" and hole_class == "all":
+        # Komplette Tabelle zurückgeben
+        complete_table = {}
+        for size, classes in DURCHGANGSLOCH_TABELLE.items():
+            complete_table[size] = {
+                cls: f"{diameter} mm" for cls, diameter in classes.items()
+            }
+        
+        return {
+            "table": complete_table,
+            "query_type": "complete_table",
+            "total_entries": len(DURCHGANGSLOCH_TABELLE) * 3,
+            "screw_sizes": list(DURCHGANGSLOCH_TABELLE.keys()),
+            "hole_classes": ["fein", "mittel", "grob"],
+            "source": "DIN-Normwerte",
+            "calculation_type": "table_lookup",
+            "note": "Komplette DIN-Normwerte-Tabelle für alle Schraubengrößen und Lochklassen"
+        }
     
-    # Durchmesser aus Tabelle holen
-    diameter_value = DURCHGANGSLOCH_TABELLE[screw_size][hole_class]
+    elif screw_size == "all" and hole_class in ["fein", "mittel", "grob"]:
+        # Alle Schraubengrößen für eine Lochklasse
+        size_table = {}
+        for size, classes in DURCHGANGSLOCH_TABELLE.items():
+            diameter_value = classes[hole_class]
+            size_table[size] = f"{diameter_value} mm"
+        
+        return {
+            "table": size_table,
+            "query_type": "all_sizes_one_class",
+            "hole_class": hole_class,
+            "total_entries": len(DURCHGANGSLOCH_TABELLE),
+            "source": "DIN-Normwerte",
+            "calculation_type": "table_lookup",
+            "note": f"Alle Schraubengrößen für Lochklasse '{hole_class}'"
+        }
     
-    # Als Quantity mit Einheit erstellen
-    diameter = diameter_value * ureg.mm
+    elif screw_size.upper() in DURCHGANGSLOCH_TABELLE and hole_class == "all":
+        # Alle Lochklassen für eine Schraubengröße
+        screw_size_upper = screw_size.upper()
+        classes_table = {}
+        for cls, diameter_value in DURCHGANGSLOCH_TABELLE[screw_size_upper].items():
+            classes_table[cls] = f"{diameter_value} mm"
+        
+        return {
+            "table": {screw_size_upper: classes_table},
+            "query_type": "one_size_all_classes", 
+            "screw_size": screw_size_upper,
+            "total_entries": 3,
+            "source": "DIN-Normwerte",
+            "calculation_type": "table_lookup",
+            "note": f"Alle Lochklassen für Schraubengröße {screw_size_upper}"
+        }
     
-    return {
-        "diameter": diameter,
-        "input_parameters": {
-            "screw_size": screw_size,
-            "hole_class": hole_class
-        },
-        "source": "DIN-Normwerte",
-        "calculation_type": "table_lookup",
-        "note": f"Durchgangsloch für {screw_size} Schraube, Klasse '{hole_class}'"
-    }
+    # === EINZELWERT-ABFRAGEN (original) ===
+    
+    else:
+        # Original-Verhalten: Einzelwert-Abfrage
+        screw_size_upper = screw_size.upper()
+        
+        # Schraubengröße validieren
+        if screw_size_upper not in DURCHGANGSLOCH_TABELLE:
+            available_sizes = ", ".join(sorted(DURCHGANGSLOCH_TABELLE.keys(), 
+                                             key=lambda x: int(x[1:])))  # Nach Nummer sortieren
+            raise ValueError(
+                f"Unbekannte Schraubengröße: {screw_size_upper}. "
+                f"Verfügbare Größen: {available_sizes} oder 'all'"
+            )
+        
+        # Lochklasse validieren
+        if hole_class not in ["fein", "mittel", "grob"]:
+            raise ValueError(
+                f"Unbekannte Lochklasse: {hole_class}. "
+                f"Verfügbare Klassen: fein, mittel, grob oder 'all'"
+            )
+        
+        # Durchmesser aus Tabelle holen
+        diameter_value = DURCHGANGSLOCH_TABELLE[screw_size_upper][hole_class]
+        
+        # Als Quantity mit Einheit erstellen
+        diameter = diameter_value * ureg.mm
+        
+        return {
+            "diameter": diameter,
+            "query_type": "single_value",
+            "input_parameters": {
+                "screw_size": screw_size_upper,
+                "hole_class": hole_class
+            },
+            "source": "DIN-Normwerte",
+            "calculation_type": "table_lookup",
+            "note": f"Durchgangsloch für {screw_size_upper} Schraube, Klasse '{hole_class}'"
+        }
 
 def get_available_screw_sizes() -> List[str]:
     """Gibt alle verfügbaren Schraubengrößen zurück"""
@@ -234,7 +307,7 @@ if __name__ == "__main__":
     print("🔧 Test: Durchgangslöcher metrische Schrauben")
     print("=" * 50)
     
-    # Test-Fälle
+    # Test-Fälle für Einzelwerte
     test_cases = [
         {"screw_size": "M10", "hole_class": "mittel"},
         {"screw_size": "M20", "hole_class": "grob"},
@@ -251,6 +324,44 @@ if __name__ == "__main__":
         except Exception as e:
             print(f"❌ Fehler: {e}")
     
+    # Erweiterte Tests für "all"-Funktionalität
+    print(f"\n🔧 ERWEITERTE TESTS: 'all'-Unterstützung")
+    print("=" * 50)
+    
+    # Test: Alle Klassen für M20
+    print(f"\nTest: Alle Klassen für M20")
+    try:
+        result = calculate(screw_size="M20", hole_class="all")
+        print(f"✅ Tabelle: {result['table']}")
+        print(f"   Typ: {result['query_type']}")
+    except Exception as e:
+        print(f"❌ Fehler: {e}")
+    
+    # Test: Alle Größen für mittlere Klasse (erste 5)
+    print(f"\nTest: Alle Größen für mittlere Klasse")
+    try:
+        result = calculate(screw_size="all", hole_class="mittel")
+        first_5 = dict(list(result['table'].items())[:5])
+        print(f"✅ Erste 5: {first_5}")
+        print(f"   Gesamt: {result['total_entries']} Einträge")
+        print(f"   Typ: {result['query_type']}")
+    except Exception as e:
+        print(f"❌ Fehler: {e}")
+    
+    # Test: Komplette Tabelle (nur Struktur)
+    print(f"\nTest: Komplette Tabelle")
+    try:
+        result = calculate(screw_size="all", hole_class="all")
+        print(f"✅ Tabellenstruktur:")
+        print(f"   Schraubengrößen: {len(result['table'])}")
+        print(f"   Beispiel M6: {result['table']['M6']}")
+        print(f"   Beispiel M150: {result['table']['M150']}")
+        print(f"   Gesamt Einträge: {result['total_entries']}")
+        print(f"   Typ: {result['query_type']}")
+    except Exception as e:
+        print(f"❌ Fehler: {e}")
+    
     # Verfügbare Größen anzeigen
     print(f"\n📋 Verfügbare Schraubengrößen: {len(get_available_screw_sizes())}")
-    print(f"📋 Durchmesser-Bereich: {get_diameter_range()}") 
+    print(f"📋 Durchmesser-Bereich: {get_diameter_range()}")
+    print(f"\n✅ ALLE TESTS ABGESCHLOSSEN") 
