@@ -23,27 +23,6 @@ def solve_zylinder(
     radius: Optional[str] = None,
     height: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet Zylinder-Parameter mit Einheiten-Support.
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "5.2 mm", "10 cm", "785 cm³")
-    
-    Zylinderformel: V = π × r² × h
-    
-    Lösbare Variablen: volume, radius, height
-    
-    Args:
-        volume: Volumen des Zylinders mit Einheit (z.B. "785 cm³", "0.5 l")
-        radius: Radius des Zylinders mit Einheit (z.B. "5 cm") 
-        height: Höhe des Zylinders mit Einheit (z.B. "10 cm")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [volume, radius, height] if p is not None]

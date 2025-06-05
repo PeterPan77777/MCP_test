@@ -22,27 +22,6 @@ def solve_rechteck(
     length: Optional[str] = None,
     width: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet Rechteck-Parameter mit Einheiten-Support.
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "5.2 mm", "10 cm", "25.5 cm²")
-    
-    Rechteckformel: A = l × b
-    
-    Lösbare Variablen: area, length, width
-    
-    Args:
-        area: Fläche des Rechtecks mit Einheit (z.B. "25.5 cm²")
-        length: Länge des Rechtecks mit Einheit (z.B. "10 cm") 
-        width: Breite des Rechtecks mit Einheit (z.B. "5.2 mm")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [area, length, width] if p is not None]

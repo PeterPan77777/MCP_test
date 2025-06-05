@@ -25,27 +25,6 @@ def solve_prisma(
     base_area: Optional[str] = None,
     height: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet Prisma-Volumen mit Einheiten-Support.
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "30 cm²", "8 cm", "240 cm³")
-    
-    Prisma-Formel: V = A × h
-    
-    Lösbare Variablen: volume, base_area, height
-    
-    Args:
-        volume: Volumen des Prismas mit Einheit (z.B. "240 cm³")
-        base_area: Grundfläche mit Einheit (z.B. "30 cm²") 
-        height: Höhe des Prismas mit Einheit (z.B. "8 cm")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [volume, base_area, height] if p is not None]

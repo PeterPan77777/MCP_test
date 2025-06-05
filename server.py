@@ -62,8 +62,7 @@ Das call_tool Tool unterstützt tolerante Parameter-Eingabe:
 
 @mcp.tool()
 def clock() -> str:
-    "Aktuelle UTC-Zeit zurückgeben"
-    return datetime.datetime.utcnow().isoformat() + "Z"
+    return datetime.datetime.utcnow().isoformat() + "Z" 
 
 # ===== TOLERANTE PARAMETER-REPARATUR (für call_tool) =====
 
@@ -73,7 +72,6 @@ class CalculateToolSchema(BaseModel):
     parameters: dict
 
 def _strip_codefence(txt: str) -> str:
-    """Entfernt Code-Fence-Markierungen (```json, ``` etc.)"""
     txt = txt.strip()
     # Entferne Anfangs-Fence
     if txt.startswith("```"):
@@ -89,15 +87,6 @@ def _strip_codefence(txt: str) -> str:
     return txt
 
 def _repair_arguments(raw: Any) -> dict:
-    """
-    Repariert typische LLM-Fehler in Tool-Argumenten:
-    - Entfernt Code-Fences
-    - Python-dict-Syntax → JSON
-    - Einfache → doppelte Anführungszeichen  
-    - Python-bool/None → JSON-bool/null
-    - Versucht ast.literal_eval als Fallback
-    - ⭐ NEU: Erkennt und extrahiert aus n8n/Workflow-JSON-Strukturen
-    """
     # ===== SPEZIAL-BEHANDLUNG: n8n/WORKFLOW-JSON ERKENNUNG =====
     if isinstance(raw, dict):
         # Prüfe ob es sich um n8n-Workflow-JSON handelt
@@ -268,15 +257,6 @@ def _repair_arguments(raw: Any) -> dict:
 async def get_available_categories(
     ctx: Context = None
 ) -> Dict:
-    """
-    Listet alle verfügbaren Tag-Kategorien von Engineering-Tools auf.
-    
-    Args:
-        ctx: FastMCP Context für Logging
-        
-    Returns:
-        Dict: Tag-Kategorien mit Tool-Anzahl und Beschreibungen
-    """
     global _session_state
     
     if ctx:
@@ -341,16 +321,6 @@ async def list_engineering_tools(
     tags: List[str],
     ctx: Context = None
 ) -> List[Dict]:
-    """
-    Listet alle verfügbaren Engineering-Tools mit spezifischen Tags auf oder alle Tools.
-    
-    Args:
-        tags: Tag-Filter (z.B. ["elementar"], ["mechanik"] oder ["all"] für alle Tools) - PFLICHTPARAMETER
-        ctx: FastMCP Context für Logging
-        
-    Returns:
-        List[Dict]: Tools mit Namen, Kurzbeschreibung und lösbaren Variablen
-    """
     global _session_state
     
     # Spezielle Behandlung für "all" Tag
@@ -444,17 +414,6 @@ async def get_tool_details(
     tool_name: str,
     ctx: Context = None
 ) -> Dict:
-    """
-    Liefert vollständige Dokumentation eines Engineering-Tools.
-    WICHTIG: Schaltet das Tool nach diesem Schritt für call_tool frei!
-    
-    Args:
-        tool_name: Name des Tools (z.B. "solve_kesselformel")
-        ctx: FastMCP Context für Logging
-        
-    Returns:
-        Dict: Ausführliche Tool-Dokumentation mit Parametern, Beispielen und Schema
-    """
     global _session_state
     
     if ctx:
@@ -534,23 +493,6 @@ async def call_tool(
     parameters: Union[Dict[str, Any], str],  # Erweitert: auch String akzeptieren
     ctx: Context = None
 ) -> Dict:
-    """
-    TOLERANTE Tool-Ausführung mit automatischer LLM-Fehler-Reparatur.
-    
-    Unterstützt alle Standard-JSON-Parameter sowie:
-    - Python-dict-Syntax: {param=value, other=True}
-    - Code-Fence-wrapped JSON: ```json {"param": value} ```
-    - String-Parameter: Parameter als JSON-String
-    - Automatische Bool/None/String-Konvertierung
-    
-    Args:
-        tool_name: Name des Engineering-Tools
-        parameters: Tool-Parameter (dict oder JSON-String)
-        ctx: FastMCP Context für Logging
-        
-    Returns:
-        Dict: Berechnungsergebnis oder detaillierte Fehlerinformationen
-    """
     if ctx:
         await ctx.info(f"🚀 Starte tolerante Tool-Ausführung: {tool_name}")
     
@@ -677,7 +619,6 @@ async def call_tool(
 
 # Initialisierung beim Server-Start
 async def init_engineering_tools():
-    """Lädt Engineering-Tools beim Server-Start"""
     tools_count = await discover_engineering_tools()
     print(f"✅ {tools_count} Engineering-Tools entdeckt")
     print(f"✅ 4 Meta-Tools + 1 Utility-Tool (clock) bereit")

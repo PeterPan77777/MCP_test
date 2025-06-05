@@ -26,27 +26,6 @@ def solve_ellipse(
     semi_major_axis: Optional[str] = None,
     semi_minor_axis: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet Ellipsen-Fläche mit Einheiten-Support.
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "6 cm", "4 cm", "75.4 cm²")
-    
-    Ellipsen-Formel: A = π × a × b
-    
-    Lösbare Variablen: area, semi_major_axis, semi_minor_axis
-    
-    Args:
-        area: Fläche der Ellipse mit Einheit (z.B. "75.4 cm²")
-        semi_major_axis: Große Halbachse mit Einheit (z.B. "6 cm") 
-        semi_minor_axis: Kleine Halbachse mit Einheit (z.B. "4 cm")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [area, semi_major_axis, semi_minor_axis] if p is not None]

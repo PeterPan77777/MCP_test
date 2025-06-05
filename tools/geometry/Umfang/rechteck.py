@@ -25,27 +25,6 @@ def solve_rechteck_umfang(
     length: Optional[str] = None,
     width: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet Rechteck-Umfang mit Einheiten-Support.
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "10 cm", "6 cm", "32 cm")
-    
-    Rechteck-Umfang-Formel: U = 2 × (a + b)
-    
-    Lösbare Variablen: perimeter, length, width
-    
-    Args:
-        perimeter: Umfang des Rechtecks mit Einheit (z.B. "32 cm")
-        length: Länge des Rechtecks mit Einheit (z.B. "10 cm") 
-        width: Breite des Rechtecks mit Einheit (z.B. "6 cm")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [perimeter, length, width] if p is not None]

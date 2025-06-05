@@ -22,27 +22,6 @@ def solve_dreieck(
     base: Optional[str] = None,
     height: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet Dreieck-Parameter mit Einheiten-Support.
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "5.2 mm", "10 cm", "25.5 cm²")
-    
-    Dreieckformel: A = (g × h) / 2
-    
-    Lösbare Variablen: area, base, height
-    
-    Args:
-        area: Fläche des Dreiecks mit Einheit (z.B. "25.5 cm²")
-        base: Grundseite des Dreiecks mit Einheit (z.B. "10 cm") 
-        height: Höhe des Dreiecks mit Einheit (z.B. "5.2 mm")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [area, base, height] if p is not None]

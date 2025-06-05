@@ -26,28 +26,6 @@ def solve_dreieck_umfang(
     side_b: Optional[str] = None,
     side_c: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet Dreieck-Umfang mit Einheiten-Support.
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "3 cm", "4 cm", "5 cm", "12 cm")
-    
-    Dreieck-Umfang-Formel: U = a + b + c
-    
-    Lösbare Variablen: perimeter, side_a, side_b, side_c
-    
-    Args:
-        perimeter: Umfang des Dreiecks mit Einheit (z.B. "12 cm")
-        side_a: Seite a des Dreiecks mit Einheit (z.B. "3 cm") 
-        side_b: Seite b des Dreiecks mit Einheit (z.B. "4 cm")
-        side_c: Seite c des Dreiecks mit Einheit (z.B. "5 cm")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [perimeter, side_a, side_b, side_c] if p is not None]

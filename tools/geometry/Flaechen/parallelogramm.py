@@ -25,27 +25,6 @@ def solve_parallelogramm(
     base: Optional[str] = None,
     height: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet Parallelogramm-Fläche mit Einheiten-Support.
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "8 cm", "5.2 mm", "40 cm²")
-    
-    Parallelogramm-Formel: A = a × h
-    
-    Lösbare Variablen: area, base, height
-    
-    Args:
-        area: Fläche des Parallelogramms mit Einheit (z.B. "40 cm²")
-        base: Grundseite des Parallelogramms mit Einheit (z.B. "8 cm") 
-        height: Höhe des Parallelogramms mit Einheit (z.B. "5 cm")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [area, base, height] if p is not None]

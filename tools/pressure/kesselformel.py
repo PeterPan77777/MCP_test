@@ -20,28 +20,6 @@ def solve_kesselformel(
     diameter: Optional[str] = None,
     allowable_stress: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet Kesselformel-Parameter mit Einheiten-Support.
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "10 bar", "5 mm", "100 MPa")
-    
-    Kesselformel: p = (2 × σ_zul × s) / D
-    
-    Lösbare Variablen: pressure, wall_thickness, diameter, allowable_stress
-    
-    Args:
-        pressure: Innendruck mit Einheit (z.B. "10 bar", "1.5 MPa")
-        wall_thickness: Wanddicke mit Einheit (z.B. "5 mm", "0.5 cm")
-        diameter: Innendurchmesser mit Einheit (z.B. "500 mm", "1 m")
-        allowable_stress: Zulässige Spannung mit Einheit (z.B. "200 MPa", "20000 N/cm²")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [pressure, wall_thickness, diameter, allowable_stress] if p is not None]
@@ -201,19 +179,21 @@ def solve_kesselformel(
             # Optimiere Ausgabe-Einheit
             stress_quantity = sigma_si * ureg.pascal
             
-            # Verwende MPa als Standard für Spannungen
-            if 'bar' in params['pressure']['original_unit']:
+            # Verwende eine sinnvolle Referenz-Einheit für Spannung
+            if 'MPa' in str(params.get('pressure', {}).get('original_unit', '')):
                 ref_unit = 'MPa'
+            elif 'bar' in str(params.get('pressure', {}).get('original_unit', '')):
+                ref_unit = 'MPa'  # Für Spannungen ist MPa üblicher als N/mm²
             else:
-                ref_unit = 'MPa'
+                ref_unit = 'MPa'  # Standard-Referenz
             
             stress_optimized = optimize_output_unit(stress_quantity, ref_unit)
             
             return {
                 "gegebene_werte": {
                     "druck": pressure,
-                    "wanddicke": wall_thickness,
-                    "durchmesser": diameter
+                    "durchmesser": diameter,
+                    "wanddicke": wall_thickness
                 },
                 "ergebnis": {
                     "zulaessige_spannung": f"{stress_optimized.magnitude:.6g} {stress_optimized.units}"
@@ -222,8 +202,8 @@ def solve_kesselformel(
                 "si_werte": {
                     "zulaessige_spannung_si": f"{sigma_si:.6g} Pa",
                     "druck_si": f"{p_si:.6g} Pa",
-                    "wanddicke_si": f"{s_si:.6g} m",
-                    "durchmesser_si": f"{d_si:.6g} m"
+                    "durchmesser_si": f"{d_si:.6g} m",
+                    "wanddicke_si": f"{s_si:.6g} m"
                 }
             }
         
@@ -275,21 +255,25 @@ Einschränkungen: Gilt für dünnwandige Behälter (s/D < 0.1), alle Werte müss
 }
 
 if __name__ == "__main__":
-    # Test-Beispiele
-    print("=== Kesselformel-Tool Tests ===")
+    # Test-Beispiele für Kesselformel
+    print("=== Kesselformel Tests ===")
     
-    # Test 1: Druck berechnen
+    # Test 1: Berechne Druck
     result1 = solve_kesselformel(wall_thickness="5 mm", diameter="500 mm", allowable_stress="200 MPa")
-    print(f"Test 1 - Druck: {result1}")
+    print(f"Test 1 - Druckberechnung: {result1}")
     
-    # Test 2: Wanddicke berechnen
+    # Test 2: Berechne Wanddicke
     result2 = solve_kesselformel(pressure="10 bar", diameter="1 m", allowable_stress="160 MPa")
-    print(f"Test 2 - Wanddicke: {result2}")
+    print(f"Test 2 - Wanddickenberechnung: {result2}")
     
-    # Test 3: Durchmesser berechnen
+    # Test 3: Berechne Durchmesser 
     result3 = solve_kesselformel(pressure="15 bar", wall_thickness="8 mm", allowable_stress="200 MPa")
-    print(f"Test 3 - Durchmesser: {result3}")
+    print(f"Test 3 - Durchmesserberechnung: {result3}")
     
-    # Test 4: Fehler - keine Einheit
-    result4 = solve_kesselformel(pressure="10", diameter="500 mm", allowable_stress="200 MPa")
-    print(f"Test 4 - Keine Einheit: {result4}") 
+    # Test 4: Berechne zulässige Spannung
+    result4 = solve_kesselformel(pressure="10 bar", diameter="500 mm", wall_thickness="5 mm")
+    print(f"Test 4 - Spannungsberechnung: {result4}")
+    
+    # Test 5: Fehler - keine Einheit
+    result5 = solve_kesselformel(pressure="10", diameter="500 mm", wall_thickness="5 mm")
+    print(f"Test 5 - Einheitenfehler: {result5}") 

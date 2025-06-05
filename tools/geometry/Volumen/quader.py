@@ -23,28 +23,6 @@ def solve_quader(
     width: Optional[str] = None,
     height: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet Quader-Parameter mit Einheiten-Support.
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "5.2 mm", "10 cm", "125 cm³")
-    
-    Quaderformel: V = l × b × h
-    
-    Lösbare Variablen: volume, length, width, height
-    
-    Args:
-        volume: Volumen des Quaders mit Einheit (z.B. "125 cm³", "0.5 l")
-        length: Länge des Quaders mit Einheit (z.B. "10 cm") 
-        width: Breite des Quaders mit Einheit (z.B. "5 cm")
-        height: Höhe des Quaders mit Einheit (z.B. "2.5 cm")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [volume, length, width, height] if p is not None]

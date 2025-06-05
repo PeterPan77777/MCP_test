@@ -26,27 +26,6 @@ def solve_ring(
     outer_radius: Optional[str] = None,
     inner_radius: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet Kreisring-Fläche mit Einheiten-Support.
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "8 cm", "5 cm", "109.96 cm²")
-    
-    Kreisring-Formel: A = π × (R² - r²)
-    
-    Lösbare Variablen: area, outer_radius, inner_radius
-    
-    Args:
-        area: Fläche des Kreisrings mit Einheit (z.B. "109.96 cm²")
-        outer_radius: Äußerer Radius mit Einheit (z.B. "8 cm") 
-        inner_radius: Innerer Radius mit Einheit (z.B. "5 cm")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [area, outer_radius, inner_radius] if p is not None]

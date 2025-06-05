@@ -26,27 +26,6 @@ def solve_kegel(
     radius: Optional[str] = None,
     height: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet Kegel-Volumen mit Einheiten-Support.
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "4 cm", "6 cm", "100.53 cm³")
-    
-    Kegel-Formel: V = (1/3) × π × r² × h
-    
-    Lösbare Variablen: volume, radius, height
-    
-    Args:
-        volume: Volumen des Kegels mit Einheit (z.B. "100.53 cm³")
-        radius: Grundradius mit Einheit (z.B. "4 cm") 
-        height: Höhe des Kegels mit Einheit (z.B. "6 cm")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [volume, radius, height] if p is not None]

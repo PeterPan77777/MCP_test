@@ -25,27 +25,6 @@ def solve_pyramide(
     base_area: Optional[str] = None,
     height: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet Pyramiden-Volumen mit Einheiten-Support.
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "25 cm²", "6 cm", "50 cm³")
-    
-    Pyramiden-Formel: V = (1/3) × A × h
-    
-    Lösbare Variablen: volume, base_area, height
-    
-    Args:
-        volume: Volumen der Pyramide mit Einheit (z.B. "50 cm³")
-        base_area: Grundfläche mit Einheit (z.B. "25 cm²") 
-        height: Höhe der Pyramide mit Einheit (z.B. "6 cm")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [volume, base_area, height] if p is not None]

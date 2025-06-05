@@ -157,27 +157,6 @@ def get_metadata() -> Dict[str, Any]:
     }
 
 def calculate(**kwargs) -> Dict[str, Any]:
-    """
-    Abfrage von Durchgangsloch-Durchmessern für metrische Schrauben
-    
-    WICHTIG: Dies ist eine reine Tabellen-Abfrage, KEINE Berechnung!
-    
-    ERWEITERT: Unterstützt jetzt auch "all" für Tabellen-Übersichten:
-    - screw_size="all", hole_class="mittel" → Alle Schrauben für mittlere Klasse
-    - screw_size="M10", hole_class="all" → Alle Klassen für M10
-    - screw_size="all", hole_class="all" → Komplette Tabelle
-    
-    Args:
-        screw_size (str): Schraubengröße (z.B. "M10") oder "all"
-        hole_class (str): Lochklasse ("fein", "mittel", "grob") oder "all"
-        
-    Returns:
-        Dict mit Durchgangsloch-Durchmesser(n)
-        
-    Raises:
-        ValueError: Bei ungültigen Eingabeparametern
-    """
-    
     # Parameter validieren
     required_params = ["screw_size", "hole_class"]
     for param in required_params:

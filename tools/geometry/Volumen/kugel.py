@@ -22,26 +22,6 @@ def solve_kugel(
     volume: Optional[str] = None,
     radius: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet Kugel-Parameter mit Einheiten-Support.
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "5.2 mm", "523 cm³")
-    
-    Kugelformel: V = (4/3) × π × r³
-    
-    Lösbare Variablen: volume, radius
-    
-    Args:
-        volume: Volumen der Kugel mit Einheit (z.B. "523 cm³", "0.5 l")
-        radius: Radius der Kugel mit Einheit (z.B. "5 cm")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [volume, radius] if p is not None]

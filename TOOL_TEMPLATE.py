@@ -24,27 +24,6 @@ def solve_tool_name(
     var2: Optional[str] = None,
     var3: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet [BESCHREIBUNG] mit Einheiten-Support.
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "5.2 mm", "10 cm", "25.5 cm²")
-    
-    [FORMEL BESCHREIBUNG]
-    
-    Lösbare Variablen: var1, var2, var3
-    
-    Args:
-        var1: [Beschreibung] mit Einheit (z.B. "5.2 mm")
-        var2: [Beschreibung] mit Einheit (z.B. "10.4 cm") 
-        var3: [Beschreibung] mit Einheit (z.B. "25.5 cm²")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [var1, var2, var3] if p is not None]

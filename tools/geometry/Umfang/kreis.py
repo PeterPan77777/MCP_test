@@ -26,27 +26,6 @@ def solve_kreis_umfang(
     radius: Optional[str] = None,
     diameter: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet Kreis-Umfang mit Einheiten-Support.
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "5 cm", "10 cm", "31.42 cm")
-    
-    Kreis-Umfang-Formel: U = 2 × π × r = π × d
-    
-    Lösbare Variablen: perimeter, radius, diameter
-    
-    Args:
-        perimeter: Umfang des Kreises mit Einheit (z.B. "31.42 cm")
-        radius: Radius des Kreises mit Einheit (z.B. "5 cm") 
-        diameter: Durchmesser des Kreises mit Einheit (z.B. "10 cm")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [perimeter, radius, diameter] if p is not None]

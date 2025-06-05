@@ -15,12 +15,6 @@ from engineering_mcp.registry import discover_tools, get_tool_info_for_llm, get_
 
 
 def create_mcp_server() -> Optional[FastMCP]:
-    """
-    Erstellt und konfiguriert den FastMCP-Server.
-    
-    Returns:
-        FastMCP: Konfigurierte Server-Instanz oder None bei Fehlern
-    """
     # Server-Konfiguration laden
     config = get_server_config()
     server_name = config.server_name
@@ -278,16 +272,6 @@ async def get_available_categories(
 
 
 async def setup_server(mcp_instance: FastMCP) -> int:
-    """
-    Initialisiert Server und registriert nur Meta-Tools bei MCP.
-    Engineering-Tools werden separat entdeckt aber NICHT bei MCP registriert.
-    
-    Args:
-        mcp_instance: FastMCP Server-Instanz
-        
-    Returns:
-        int: Anzahl der registrierten Meta-Tools (5)
-    """
     from engineering_mcp.registry import discover_engineering_tools
     
     # Engineering-Tools separat entdecken (NICHT bei MCP registrieren!)
@@ -306,7 +290,6 @@ async def setup_server(mcp_instance: FastMCP) -> int:
 
 
 async def main():
-    """Hauptfunktion für direkten Server-Start"""
     # Server setup
     tools_count = await setup_server(mcp)
     

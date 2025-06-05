@@ -26,27 +26,6 @@ def solve_ellipse_umfang(
     semi_major_axis: Optional[str] = None,
     semi_minor_axis: Optional[str] = None
 ) -> Dict:
-    """
-    Berechnet Ellipsen-Umfang mit Einheiten-Support (Ramanujan-Näherung).
-    
-    WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-    Format: "Wert Einheit" (z.B. "6 cm", "4 cm", "32.7 cm")
-    
-    Ellipsen-Umfang-Näherung: U ≈ π × [3(a + b) - √((3a + b)(a + 3b))]
-    
-    Lösbare Variablen: perimeter, semi_major_axis, semi_minor_axis
-    
-    Args:
-        perimeter: Umfang der Ellipse mit Einheit (z.B. "32.7 cm")
-        semi_major_axis: Große Halbachse mit Einheit (z.B. "6 cm") 
-        semi_minor_axis: Kleine Halbachse mit Einheit (z.B. "4 cm")
-        
-    Returns:
-        Dict mit Ergebnissen in optimierten Einheiten
-        
-    Raises:
-        ValueError: Bei ungültigen Parametern oder fehlenden Einheiten
-    """
     try:
         # Zähle gegebene Parameter
         given_params = [p for p in [perimeter, semi_major_axis, semi_minor_axis] if p is not None]
