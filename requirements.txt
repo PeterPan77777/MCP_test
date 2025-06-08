@@ -7,3 +7,5 @@ sympy>=1.13
 pydantic>=2.0
 python-dotenv>=1.0
 pint>=0.23  # Für Einheiten-Support und -Konvertierung 
+pandas>=2.0  # Für CSV-Datenverarbeitung in Schrauben-Tools
+numpy>=1.24  # Numerische Berechnungen für Schrauben-Tools
