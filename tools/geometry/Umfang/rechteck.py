@@ -5,216 +5,532 @@ Rechteck-Umfang - Berechnet Umfang, Länge oder Breite
 Berechnet Rechteck-Umfang mit automatischer Einheiten-Konvertierung.
 Alle Eingaben MÜSSEN mit Einheiten angegeben werden.
 
-Löst die Formel U = 2 × (a + b) nach verschiedenen Variablen auf.
-Lösbare Variablen: perimeter, length, width
+Löst die Formel U = 2 × (l + b) nach verschiedenen Variablen auf.
+Lösbare Variablen: umfang, laenge, breite
 
-Rechteck: Viereck mit rechten Winkeln
-Formel: U = 2 × (a + b) = 2 × (Länge + Breite)
+⚠️ NAMENSKONVENTION: ALLE Parameter-Namen MÜSSEN DEUTSCH sein!
+Beispiele: durchmesser, druck, laenge, breite, hoehe, radius, flaeche, volumen, wanddicke
+
+Rechteck: Viereck mit 4 rechten Winkeln - U = 2 × (l + b) = 2l + 2b
 """
 
-from typing import Dict, Optional
+# ================================================================================================
+# 🎯 TOOL-KONFIGURATION & PARAMETER-DEFINITIONEN 🎯
+# ================================================================================================
+
+# ===== 🔧 GRUNDKONFIGURATION =====
+TOOL_NAME = "rechteck_umfang"
+TOOL_TAGS = ["elementar"]
+TOOL_SHORT_DESCRIPTION = "Rechteck-Umfang - Berechnet Umfang, Länge oder Breite"
+TOOL_VERSION = "1.0.0"
+HAS_SOLVING = "symbolic"  # Alle Berechnungen sind analytisch lösbar
+
+# ===== 📝 FUNKTIONSPARAMETER-DEFINITIONEN =====
+FUNCTION_PARAM_1_NAME = "umfang"
+FUNCTION_PARAM_1_DESC = "Umfang des Rechtecks mit Längeneinheit (z.B. '30 cm', '300 mm', '0.3 m') oder 'target' für Berechnung"
+FUNCTION_PARAM_1_EXAMPLE = "30 cm"
+
+FUNCTION_PARAM_2_NAME = "laenge"
+FUNCTION_PARAM_2_DESC = "Länge des Rechtecks mit Längeneinheit (z.B. '10 cm', '100 mm', '0.1 m') oder 'target' für Berechnung"
+FUNCTION_PARAM_2_EXAMPLE = "10 cm"
+
+FUNCTION_PARAM_3_NAME = "breite"
+FUNCTION_PARAM_3_DESC = "Breite des Rechtecks mit Längeneinheit (z.B. '5 cm', '50 mm', '0.05 m') oder 'target' für Berechnung"
+FUNCTION_PARAM_3_EXAMPLE = "5 cm"
+
+# ===== 📊 METADATEN-STRUKTUR =====
+TOOL_DESCRIPTION = f"""Löst die Rechteck-Umfang-Formel U = 2 × (l + b) nach verschiedenen Variablen auf mit TARGET-System.
+
+WICHTIG: Alle Parameter sind PFLICHT - einer als 'target', die anderen mit Einheiten!
+Target-System: Geben Sie 'target' für den zu berechnenden Parameter an.
+
+BERECHNUNGSARTEN:
+{FUNCTION_PARAM_1_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel U = 2(l + b))
+{FUNCTION_PARAM_2_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel l = (U/2) - b)
+{FUNCTION_PARAM_3_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel b = (U/2) - l)
+
+Rechteck-Formel: U = 2 × (l + b)
+
+Anwendungsbereich: Geometrie, Zaunberechnungen, Rahmenberechnungen, Grundstücksumfang
+Einschränkungen: Alle Werte müssen positiv sein
+Genauigkeit: Exakte analytische Lösung"""
+
+# Parameter-Definitionen für Metadaten
+PARAMETER_UMFANG = {
+    "type": "string | array",
+    "description": FUNCTION_PARAM_1_DESC,
+    "example": FUNCTION_PARAM_1_EXAMPLE,
+    "batch_example": ["target", "32 cm", "target"]
+}
+
+PARAMETER_LAENGE = {
+    "type": "string | array", 
+    "description": FUNCTION_PARAM_2_DESC,
+    "example": FUNCTION_PARAM_2_EXAMPLE,
+    "batch_example": ["10 cm", "target", "15 cm"]
+}
+
+PARAMETER_BREITE = {
+    "type": "string | array",
+    "description": FUNCTION_PARAM_3_DESC,
+    "example": FUNCTION_PARAM_3_EXAMPLE,
+    "batch_example": ["5 cm", "8 cm", "target"]
+}
+
+# Output-Definition
+OUTPUT_RESULT = {
+    "type": "Quantity",
+    "description": "Berechnungsergebnis mit optimierter Einheit",
+    "unit": "abhängig vom Parameter"
+}
+
+# Beispiele (verwenden die definierten Parameter-Namen)
+TOOL_EXAMPLES = [
+    {
+        "title": f"Berechne {FUNCTION_PARAM_1_NAME} (analytisch) bei gegebener {FUNCTION_PARAM_2_NAME} und {FUNCTION_PARAM_3_NAME}",
+        "input": {FUNCTION_PARAM_1_NAME: "target", FUNCTION_PARAM_2_NAME: FUNCTION_PARAM_2_EXAMPLE, FUNCTION_PARAM_3_NAME: FUNCTION_PARAM_3_EXAMPLE},
+        "output": f"{FUNCTION_PARAM_1_NAME} in optimierter Einheit mit geschlossener Formel"
+    },
+    {
+        "title": f"Berechne {FUNCTION_PARAM_2_NAME} (analytisch) bei gegebenem {FUNCTION_PARAM_1_NAME} und {FUNCTION_PARAM_3_NAME}", 
+        "input": {FUNCTION_PARAM_1_NAME: FUNCTION_PARAM_1_EXAMPLE, FUNCTION_PARAM_2_NAME: "target", FUNCTION_PARAM_3_NAME: FUNCTION_PARAM_3_EXAMPLE},
+        "output": f"{FUNCTION_PARAM_2_NAME} in optimierter Einheit mit geschlossener Formel"
+    },
+    {
+        "title": f"Berechne {FUNCTION_PARAM_3_NAME} (analytisch) bei gegebenem {FUNCTION_PARAM_1_NAME} und {FUNCTION_PARAM_2_NAME}",
+        "input": {FUNCTION_PARAM_1_NAME: FUNCTION_PARAM_1_EXAMPLE, FUNCTION_PARAM_2_NAME: FUNCTION_PARAM_2_EXAMPLE, FUNCTION_PARAM_3_NAME: "target"},
+        "output": f"{FUNCTION_PARAM_3_NAME} in optimierter Einheit mit geschlossener Formel"
+    }
+]
+
+# Annahmen
+TOOL_ASSUMPTIONS = [
+    "Rechteck mit zwei bekannten Seitenlängen",
+    "Alle Eingabewerte sind positiv",
+    "Winkel sind alle 90 Grad"
+]
+
+# Einschränkungen  
+TOOL_LIMITATIONS = [
+    "Nur für positive Werte gültig",
+    "Nur für rechteckige Formen",
+    "Nicht für schräge Vierecke geeignet"
+]
+
+# Mathematische Grundlagen
+MATHEMATICAL_FOUNDATION = "Rechteck-Umfang: U = 2 × (l + b), wobei l die Länge und b die Breite ist"
+
+# Normengrundlage
+NORM_FOUNDATION = ""
+
+# ===== AUTOMATISCH BERECHNET =====
+PARAMETER_COUNT = len([name for name in globals() if name.startswith('PARAMETER_')])
+
+# ================================================================================================
+# 🔧 IMPORTS & DEPENDENCIES 🔧
+# ================================================================================================
+
+from typing import Dict, Annotated, List, Any, Optional, Union
 import sys
 import os
 
 # Import des Einheiten-Utilities
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from tools.units_utils import validate_inputs_have_units, optimize_output_unit, UnitsError, ureg
+from engineering_mcp.units_utils import validate_inputs_have_units, optimize_output_unit, UnitsError, ureg
+
+# ================================================================================================
+# 🔄 BATCH PROCESSING HELPERS 🔄
+# ================================================================================================
+
+def is_batch_input(params: Dict[str, Any]) -> bool:
+    """
+    Prüft ob die Parameter im Batch-Modus sind.
+    Batch-Modus: ALLE Parameter sind Listen gleicher Länge.
+    """
+    list_params = [k for k, v in params.items() if isinstance(v, list)]
+    
+    # Wenn keine Listen, kein Batch-Modus
+    if not list_params:
+        return False
+    
+    # ALLE Parameter müssen Listen sein
+    if len(list_params) != len(params):
+        return False
+    
+    # Alle Listen müssen gleiche Länge haben
+    lengths = [len(params[k]) for k in list_params]
+    return len(set(lengths)) == 1 and lengths[0] > 0
+
+def prepare_batch_combinations(params: Dict[str, Any]) -> List[Dict[str, str]]:
+    """
+    Erstellt Parametersätze für Batch-Verarbeitung.
+    
+    NEU: Alle Parameter müssen Listen gleicher Länge sein!
+    Jeder Index repräsentiert einen vollständigen Parametersatz.
+    """
+    # Prüfe ob Batch-Modus
+    if not is_batch_input(params):
+        # Einzelberechnung - gib Parameter unverändert zurück
+        return [params]
+    
+    # Batch-Modus: Alle Parameter sind Listen
+    # Hole die Anzahl der Berechnungen (alle Listen haben gleiche Länge)
+    num_calculations = len(next(iter(params.values())))
+    
+    # Erstelle Parametersätze für jeden Index
+    combinations = []
+    for i in range(num_calculations):
+        combo = {}
+        for key, values in params.items():
+            combo[key] = values[i]
+        combinations.append(combo)
+    
+    return combinations
+
+# ================================================================================================
+# 🎯 TOOL FUNCTIONS 🎯
+# ================================================================================================
 
 def solve_rechteck_umfang(
-    perimeter: Optional[str] = None,
-    length: Optional[str] = None,
-    width: Optional[str] = None
-) -> Dict:
+    # ⚠️ Hier die konfigurierten Parameter-Namen und -Beschreibungen verwenden:
+    umfang: Annotated[Union[str, List[str]], FUNCTION_PARAM_1_DESC],  
+    laenge: Annotated[Union[str, List[str]], FUNCTION_PARAM_2_DESC],
+    breite: Annotated[Union[str, List[str]], FUNCTION_PARAM_3_DESC]
+) -> Union[Dict, List[Dict]]:
+    """
+    Löst die Rechteck-Umfang-Formel U = 2 × (l + b) nach verschiedenen Variablen auf.
+    
+    Unterstützt Batch-Verarbeitung: Wenn Listen als Parameter übergeben werden,
+    müssen ALLE Parameter Listen gleicher Länge sein. Jeder Index repräsentiert
+    einen vollständigen Parametersatz.
+    """
     try:
-        # Zähle gegebene Parameter
-        given_params = [p for p in [perimeter, length, width] if p is not None]
+        # Erstelle Parameter-Dictionary
+        params_dict = {
+            'umfang': umfang,
+            'laenge': laenge,
+            'breite': breite
+        }
+        
+        # Validiere Batch-Format
+        list_params = [k for k, v in params_dict.items() if isinstance(v, list)]
+        if list_params:
+            # Einige Parameter sind Listen - prüfe ob ALLE Listen sind
+            non_list_params = [k for k, v in params_dict.items() if not isinstance(v, list)]
+            if non_list_params:
+                return {
+                    "error": "Batch-Modus erfordert, dass ALLE Parameter Listen sind",
+                    "list_params": list_params,
+                    "non_list_params": non_list_params,
+                    "hinweis": "Entweder alle Parameter als einzelne Werte ODER alle als Listen gleicher Länge"
+                }
+            
+            # Prüfe ob alle Listen gleiche Länge haben
+            lengths = {k: len(v) for k, v in params_dict.items()}
+            unique_lengths = set(lengths.values())
+            if len(unique_lengths) > 1:
+                return {
+                    "error": "Alle Parameter-Listen müssen die gleiche Länge haben",
+                    "lengths": lengths,
+                    "hinweis": "Jeder Index repräsentiert einen vollständigen Parametersatz"
+                }
+        
+        # Erstelle alle Kombinationen für Batch-Verarbeitung
+        combinations = prepare_batch_combinations(params_dict)
+        
+        # Wenn nur eine Kombination, führe normale Berechnung durch
+        if len(combinations) == 1:
+            return _solve_single(
+                combinations[0]['umfang'],
+                combinations[0]['laenge'],
+                combinations[0]['breite']
+            )
+        
+        # Batch-Verarbeitung: Berechne alle Kombinationen
+        results = []
+        for i, combo in enumerate(combinations):
+            try:
+                result = _solve_single(
+                    combo['umfang'],
+                    combo['laenge'],
+                    combo['breite']
+                )
+                # Füge Batch-Index hinzu
+                result['batch_index'] = i
+                result['input_combination'] = combo
+                results.append(result)
+            except Exception as e:
+                # Bei Fehler in einer Berechnung, füge Fehler-Ergebnis hinzu
+                results.append({
+                    'batch_index': i,
+                    'input_combination': combo,
+                    'error': str(e),
+                    'type': type(e).__name__
+                })
+        
+        return {
+            "batch_mode": True,
+            "total_calculations": len(combinations),
+            "successful": sum(1 for r in results if 'error' not in r),
+            "failed": sum(1 for r in results if 'error' in r),
+            "results": results
+        }
+        
+    except Exception as e:
+        return {
+            "error": f"Fehler in solve_rechteck_umfang: {str(e)}",
+            "type": type(e).__name__
+        }
+
+def _solve_single(
+    umfang: str,
+    laenge: str,
+    breite: str
+) -> Dict:
+    """
+    Interne Funktion für einzelne Berechnungen.
+    Enthält die ursprüngliche Berechnungslogik.
+    """
+    try:
+        # Identifiziere target Parameter
+        target_params = []
+        given_params = []
+        
+        params_info = {
+            'var1': umfang,
+            'var2': laenge,
+            'var3': breite
+        }
+        
+        for param_name, param_value in params_info.items():
+            if param_value.lower().strip() == "target":
+                target_params.append(param_name)
+            else:
+                given_params.append(param_name)
+        
+        # Validierung: Genau ein target Parameter
+        if len(target_params) != 1:
+            return {
+                "error": f"Genau ein Parameter muss 'target' sein (gefunden: {len(target_params)})",
+                "target_params": target_params,
+                "example": f"solve_rechteck_umfang({FUNCTION_PARAM_1_NAME}='target', {FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}', {FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}')",
+                "hinweis": "Geben Sie genau einen Parameter als 'target' an"
+            }
         
         if len(given_params) != 2:
             return {
-                "error": "Genau 2 Parameter müssen gegeben sein (einer wird berechnet)",
-                "given_count": len(given_params),
-                "example": "Beispiel: solve_rechteck_umfang(length='10 cm', width='6 cm')"
+                "error": f"Genau 2 Parameter müssen Werte mit Einheiten haben (gefunden: {len(given_params)})",
+                "given_params": given_params,
+                "example": f"solve_rechteck_umfang({FUNCTION_PARAM_1_NAME}='target', {FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}', {FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}')"
             }
         
-        # Validiere Einheiten und konvertiere zu SI
+        target_param = target_params[0]
+        
+        # Erstelle kwargs für Validierung (nur gegebene Parameter)
+        validation_kwargs = {}
+        param_names = {
+            'var1': 'umfang',
+            'var2': 'laenge',
+            'var3': 'breite'
+        }
+        
+        for param_name in given_params:
+            real_param_name = param_names[param_name]
+            validation_kwargs[real_param_name] = params_info[param_name]
+        
+        # Validierung der Eingaben
         try:
-            params = validate_inputs_have_units(
-                perimeter=perimeter, 
-                length=length, 
-                width=width
-            )
+            params = validate_inputs_have_units(**validation_kwargs)
         except UnitsError as e:
             return {
                 "error": "Einheiten-Fehler",
                 "message": str(e),
-                "hinweis": "Alle Parameter müssen mit Einheiten angegeben werden",
+                "hinweis": "Alle Nicht-Target-Parameter müssen mit Einheiten angegeben werden",
                 "beispiele": [
-                    "perimeter='32 cm'",
-                    "length='10 cm'", 
-                    "width='6 cm'"
+                    f"{FUNCTION_PARAM_1_NAME}='{FUNCTION_PARAM_1_EXAMPLE}'",
+                    f"{FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}'",
+                    f"{FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}'"
                 ]
             }
         
-        # Berechnung basierend auf gegebenen Parametern
-        if perimeter is None:
-            # Berechne Umfang: U = 2 × (a + b)
-            length_si = params['length']['si_value']   # in Metern
-            width_si = params['width']['si_value']     # in Metern
+        # Rechteck-Umfang: U = 2 × (l + b)
+        # Umgestellt: l = (U / 2) - b
+        #            b = (U / 2) - l
+        
+        if target_param == 'var1':  # umfang
+            # Berechne Umfang: U = 2 × (l + b)
+            l_si = params['laenge']['si_value']  # in Metern
+            w_si = params['breite']['si_value']   # in Metern
             
-            if length_si <= 0 or width_si <= 0:
+            if l_si <= 0 or w_si <= 0:
                 return {"error": "Alle Werte müssen positiv sein"}
             
-            perimeter_si = 2 * (length_si + width_si)  # in Metern
+            u_si = 2 * (l_si + w_si)  # in Metern
             
-            # Optimiere Ausgabe-Einheit (nutze längere Seite als Referenz)
-            ref_unit = params['length']['original_unit'] if length_si > width_si else params['width']['original_unit']
-            perimeter_quantity = perimeter_si * ureg.meter
-            perimeter_optimized = optimize_output_unit(perimeter_quantity, ref_unit)
+            # Optimiere Ausgabe-Einheit (nutze größere Seitenlänge als Referenz)
+            ref_unit = params['laenge']['original_unit'] if l_si > w_si else params['breite']['original_unit']
+            umfang_quantity = u_si * ureg.meter
+            umfang_optimized = optimize_output_unit(umfang_quantity, ref_unit)
             
             return {
+                "📊 ANALYTICAL SOLUTION": "Geschlossene Formel",
+                "target_parameter": "umfang",
                 "gegebene_werte": {
-                    "laenge": length,
-                    "breite": width
+                    "laenge": laenge,
+                    "breite": breite
                 },
                 "ergebnis": {
-                    "umfang": f"{perimeter_optimized.magnitude:.6g} {perimeter_optimized.units}"
+                    "umfang": f"{umfang_optimized.magnitude:.6g} {umfang_optimized.units}"
                 },
-                "formel": "U = 2 × (a + b)",
+                "formel": "U = 2 × (l + b)",
                 "si_werte": {
-                    "umfang_si": f"{perimeter_si:.6g} m",
-                    "laenge_si": f"{length_si:.6g} m",
-                    "breite_si": f"{width_si:.6g} m"
+                    "umfang_si": f"{u_si:.6g} m",
+                    "laenge_si": f"{l_si:.6g} m",
+                    "breite_si": f"{w_si:.6g} m"
                 }
             }
             
-        elif length is None:
-            # Berechne Länge: a = (U / 2) - b
-            perimeter_si = params['perimeter']['si_value']  # in Metern
-            width_si = params['width']['si_value']          # in Metern
+        elif target_param == 'var2':  # laenge
+            # Berechne Länge: l = (U / 2) - b
+            u_si = params['umfang']['si_value']  # in Metern
+            w_si = params['breite']['si_value']      # in Metern
             
-            if perimeter_si <= 0 or width_si <= 0:
+            if u_si <= 0 or w_si <= 0:
                 return {"error": "Alle Werte müssen positiv sein"}
             
-            length_si = (perimeter_si / 2) - width_si  # in Metern
+            l_si = (u_si / 2) - w_si  # in Metern
             
-            if length_si <= 0:
-                return {"error": "Breite ist zu groß für den gegebenen Umfang"}
+            if l_si <= 0:
+                return {"error": "Berechnete Länge ist nicht positiv - überprüfen Sie Umfang und Breite"}
             
             # Optimiere Ausgabe-Einheit
-            length_quantity = length_si * ureg.meter
-            length_optimized = optimize_output_unit(length_quantity, params['width']['original_unit'])
+            laenge_quantity = l_si * ureg.meter
+            laenge_optimized = optimize_output_unit(laenge_quantity, params['breite']['original_unit'])
             
             return {
+                "📊 ANALYTICAL SOLUTION": "Geschlossene Formel",
+                "target_parameter": "laenge",
                 "gegebene_werte": {
-                    "umfang": perimeter,
-                    "breite": width
+                    "umfang": umfang,
+                    "breite": breite
                 },
                 "ergebnis": {
-                    "laenge": f"{length_optimized.magnitude:.6g} {length_optimized.units}"
+                    "laenge": f"{laenge_optimized.magnitude:.6g} {laenge_optimized.units}"
                 },
-                "formel": "a = (U / 2) - b",
+                "formel": "l = (U / 2) - b",
                 "si_werte": {
-                    "laenge_si": f"{length_si:.6g} m",
-                    "umfang_si": f"{perimeter_si:.6g} m",
-                    "breite_si": f"{width_si:.6g} m"
+                    "laenge_si": f"{l_si:.6g} m",
+                    "umfang_si": f"{u_si:.6g} m",
+                    "breite_si": f"{w_si:.6g} m"
                 }
             }
             
-        elif width is None:
-            # Berechne Breite: b = (U / 2) - a
-            perimeter_si = params['perimeter']['si_value']  # in Metern
-            length_si = params['length']['si_value']        # in Metern
+        elif target_param == 'var3':  # breite
+            # Berechne Breite: b = (U / 2) - l
+            u_si = params['umfang']['si_value']  # in Metern
+            l_si = params['laenge']['si_value']     # in Metern
             
-            if perimeter_si <= 0 or length_si <= 0:
+            if u_si <= 0 or l_si <= 0:
                 return {"error": "Alle Werte müssen positiv sein"}
             
-            width_si = (perimeter_si / 2) - length_si  # in Metern
+            w_si = (u_si / 2) - l_si  # in Metern
             
-            if width_si <= 0:
-                return {"error": "Länge ist zu groß für den gegebenen Umfang"}
+            if w_si <= 0:
+                return {"error": "Berechnete Breite ist nicht positiv - überprüfen Sie Umfang und Länge"}
             
             # Optimiere Ausgabe-Einheit
-            width_quantity = width_si * ureg.meter
-            width_optimized = optimize_output_unit(width_quantity, params['length']['original_unit'])
+            breite_quantity = w_si * ureg.meter
+            breite_optimized = optimize_output_unit(breite_quantity, params['laenge']['original_unit'])
             
             return {
+                "📊 ANALYTICAL SOLUTION": "Geschlossene Formel",
+                "target_parameter": "breite",
                 "gegebene_werte": {
-                    "umfang": perimeter,
-                    "laenge": length
+                    "umfang": umfang,
+                    "laenge": laenge
                 },
                 "ergebnis": {
-                    "breite": f"{width_optimized.magnitude:.6g} {width_optimized.units}"
+                    "breite": f"{breite_optimized.magnitude:.6g} {breite_optimized.units}"
                 },
-                "formel": "b = (U / 2) - a",
+                "formel": "b = (U / 2) - l",
                 "si_werte": {
-                    "breite_si": f"{width_si:.6g} m",
-                    "umfang_si": f"{perimeter_si:.6g} m",
-                    "laenge_si": f"{length_si:.6g} m"
+                    "breite_si": f"{w_si:.6g} m",
+                    "umfang_si": f"{u_si:.6g} m",
+                    "laenge_si": f"{l_si:.6g} m"
                 }
             }
         
+    except UnitsError as e:
+        return {"error": f"Einheiten-Fehler: {str(e)}"}
     except Exception as e:
         return {
-            "error": "Berechnungsfehler",
-            "message": str(e),
-            "hinweis": "Überprüfen Sie die Eingabe-Parameter und Einheiten"
+            "error": f"Fehler in _solve_single: {str(e)}",
+            "type": type(e).__name__
         }
 
-# Tool-Metadaten für Registry
-TOOL_METADATA = {
-    "name": "solve_rechteck_umfang",
-    "short_description": "Rechteck-Umfang - Berechnet Umfang, Länge oder Breite",
-    "description": """Löst die Rechteck-Umfang-Formel U = 2 × (a + b) nach verschiedenen Variablen auf. Lösbare Variablen: perimeter, length, width
+# ================================================================================================
+# 🎯 METADATA FUNCTIONS 🎯
+# ================================================================================================
 
-WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-Format: "Wert Einheit" (z.B. "10 cm", "6 cm", "32 cm")
-
-Grundformel: U = 2 × (a + b)
-
-Parameter:
-- perimeter: Umfang des Rechtecks mit Längeneinheit (z.B. "32 cm", "320 mm")
-- length: Länge des Rechtecks mit Längeneinheit (z.B. "10 cm", "100 mm") 
-- width: Breite des Rechtecks mit Längeneinheit (z.B. "6 cm", "60 mm")
-
-Anwendungsbereich: Geometrie, Konstruktion, Zaunberechnungen, Umrandungen
-Einschränkungen: Alle Werte müssen positiv sein""",
-    "tags": ["elementar", "Umfang"],
-    "function": solve_rechteck_umfang,
-    "examples": [
-        {
-            "description": "Berechne Umfang bei gegebener Länge und Breite",
-            "call": 'solve_rechteck_umfang(length="10 cm", width="6 cm")',
-            "result": "Umfang in optimierter Einheit"
+def get_metadata():
+    """Gibt die Metadaten des Tools für Registry-Discovery zurück"""
+    return {
+        # ✅ Neue Registry-Struktur
+        "tool_name": TOOL_NAME,
+        "short_description": TOOL_SHORT_DESCRIPTION,  # ✅ Neu
+        "description": TOOL_DESCRIPTION,  # ✅ Neu
+        "tags": TOOL_TAGS,  # ✅ Neu: "tags" statt "tool_tags"
+        "has_solving": HAS_SOLVING,
+        
+        # ✅ KRITISCH: Parameters Dictionary für Registry-Discovery
+        "parameters": {
+            FUNCTION_PARAM_1_NAME: PARAMETER_UMFANG,
+            FUNCTION_PARAM_2_NAME: PARAMETER_LAENGE,
+            FUNCTION_PARAM_3_NAME: PARAMETER_BREITE,
         },
-        {
-            "description": "Berechne Länge bei gegebenem Umfang und Breite", 
-            "call": 'solve_rechteck_umfang(perimeter="32 cm", width="6 cm")',
-            "result": "Länge in optimierter Einheit"
-        },
-        {
-            "description": "Berechne Breite bei gegebenem Umfang und Länge",
-            "call": 'solve_rechteck_umfang(perimeter="32 cm", length="10 cm")',
-            "result": "Breite in optimierter Einheit"
-        }
-    ]
-}
+        
+        # ✅ Beispiele im neuen Format
+        "examples": TOOL_EXAMPLES,
+        
+        # ✅ Vollständige Metadaten für erweiterte Nutzung
+        "tool_version": TOOL_VERSION,
+        "output_result": OUTPUT_RESULT,
+        "tool_assumptions": TOOL_ASSUMPTIONS,
+        "tool_limitations": TOOL_LIMITATIONS,
+        "mathematical_foundation": MATHEMATICAL_FOUNDATION,
+        "norm_foundation": NORM_FOUNDATION,
+        
+        # ✅ Backwards Compatibility (falls andere Teile das alte Format erwarten)
+        "tool_tags": TOOL_TAGS,
+        "tool_short_description": TOOL_SHORT_DESCRIPTION,
+        "parameter_count": len([name for name in globals() if name.startswith('PARAMETER_')]),
+        "tool_description": TOOL_DESCRIPTION,
+        "parameter_count": PARAMETER_COUNT,
+        "parameter_umfang": PARAMETER_UMFANG,
+        "parameter_laenge": PARAMETER_LAENGE,
+        "parameter_breite": PARAMETER_BREITE
+    }
+
+def calculate(umfang: str, laenge: str, breite: str) -> Dict:
+    """Legacy-Funktion für Kompatibilität"""
+    return solve_rechteck_umfang(umfang, laenge, breite)
 
 if __name__ == "__main__":
     # Test-Beispiele
     print("=== Rechteck-Umfang-Tool Tests ===")
     
     # Test 1: Umfang berechnen
-    result1 = solve_rechteck_umfang(length="10 cm", width="6 cm")
+    result1 = solve_rechteck_umfang(umfang="target", laenge="10 cm", breite="6 cm")
     print(f"Test 1 - Umfang: {result1}")
     
     # Test 2: Länge berechnen
-    result2 = solve_rechteck_umfang(perimeter="32 cm", width="6 cm")
+    result2 = solve_rechteck_umfang(umfang="32 cm", laenge="target", breite="6 cm")
     print(f"Test 2 - Länge: {result2}")
     
     # Test 3: Breite berechnen
-    result3 = solve_rechteck_umfang(perimeter="32 cm", length="10 cm")
+    result3 = solve_rechteck_umfang(umfang="32 cm", laenge="10 cm", breite="target")
     print(f"Test 3 - Breite: {result3}")
     
     # Test 4: Fehler - keine Einheit
-    result4 = solve_rechteck_umfang(length="10", width="6 cm")
+    result4 = solve_rechteck_umfang(umfang="target", laenge="10", breite="6 cm")
     print(f"Test 4 - Keine Einheit: {result4}") 

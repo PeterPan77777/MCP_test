@@ -1,0 +1,369 @@
+#!/usr/bin/env python3
+"""
+Dreieck-Fläche - Berechnet Fläche, Grundseite oder Höhe eines Dreiecks
+
+Berechnet Dreieckflächen mit automatischer Einheiten-Konvertierung.
+Alle Eingaben MÜSSEN mit Einheiten angegeben werden.
+
+Löst die Formel A = (g × h) / 2 nach verschiedenen Variablen auf.
+Lösbare Variablen: flaeche, grundseite, hoehe
+
+⚠️ NAMENSKONVENTION: ALLE Parameter-Namen MÜSSEN DEUTSCH sein!
+Beispiele: durchmesser, druck, laenge, breite, hoehe, radius, flaeche, volumen, wanddicke
+
+Dreiecksformel: A = (g × h) / 2 - Berechnet die Fläche eines Dreiecks aus Grundseite und Höhe
+"""
+
+# ================================================================================================
+# 🎯 TOOL-KONFIGURATION & PARAMETER-DEFINITIONEN 🎯
+# ================================================================================================
+
+# ===== 🔧 GRUNDKONFIGURATION =====
+TOOL_NAME = "dreieck_flaeche"
+TOOL_TAGS = ["elementar", "Flaechen"]
+TOOL_SHORT_DESCRIPTION = "Dreieck-Fläche - Berechnet Fläche, Grundseite oder Höhe"
+TOOL_VERSION = "1.0.0"
+HAS_SOLVING = "symbolic"  # Alle Berechnungen sind analytisch lösbar
+
+# ===== 📝 FUNKTIONSPARAMETER-DEFINITIONEN =====
+FUNCTION_PARAM_1_NAME = "flaeche"
+FUNCTION_PARAM_1_DESC = "Fläche des Dreiecks mit Flächeneinheit (z.B. '25.5 cm²', '0.1 m²', '255 mm²') oder 'target' für Berechnung"
+FUNCTION_PARAM_1_EXAMPLE = "25.5 cm²"
+
+FUNCTION_PARAM_2_NAME = "grundseite"
+FUNCTION_PARAM_2_DESC = "Grundseite des Dreiecks mit Längeneinheit (z.B. '10 cm', '5.2 mm', '0.1 m') oder 'target' für Berechnung"
+FUNCTION_PARAM_2_EXAMPLE = "10 cm"
+
+FUNCTION_PARAM_3_NAME = "hoehe"
+FUNCTION_PARAM_3_DESC = "Höhe des Dreiecks mit Längeneinheit (z.B. '8 cm', '25 mm', '0.08 m') oder 'target' für Berechnung"
+FUNCTION_PARAM_3_EXAMPLE = "8 cm"
+
+# ===== 📊 METADATEN-STRUKTUR =====
+TOOL_DESCRIPTION = f"""Löst die Dreieckformel A = (g × h) / 2 nach verschiedenen Variablen auf mit TARGET-System.
+
+WICHTIG: Alle Parameter sind PFLICHT - einer als 'target', die anderen mit Einheiten!
+Target-System: Geben Sie 'target' für den zu berechnenden Parameter an.
+
+BERECHNUNGSARTEN:
+{FUNCTION_PARAM_1_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel A = (g × h) / 2)
+{FUNCTION_PARAM_2_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel g = 2A / h)
+{FUNCTION_PARAM_3_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel h = 2A / g)
+
+Dreiecksformel: A = (g × h) / 2
+
+Anwendungsbereich: Geometrische Berechnungen, Konstruktion, Dachflächen, Grundstücksberechnungen
+Einschränkungen: Alle Werte müssen positiv sein
+Genauigkeit: Exakte analytische Lösung"""
+
+# Parameter-Definitionen für Metadaten
+PARAMETER_FLAECHE = {
+    "type": "string",
+    "description": FUNCTION_PARAM_1_DESC,
+    "example": FUNCTION_PARAM_1_EXAMPLE
+}
+
+PARAMETER_GRUNDSEITE = {
+    "type": "string", 
+    "description": FUNCTION_PARAM_2_DESC,
+    "example": FUNCTION_PARAM_2_EXAMPLE
+}
+
+PARAMETER_HOEHE = {
+    "type": "string",
+    "description": FUNCTION_PARAM_3_DESC,
+    "example": FUNCTION_PARAM_3_EXAMPLE
+}
+
+# Output-Definition
+OUTPUT_RESULT = {
+    "type": "Quantity",
+    "description": "Berechnungsergebnis mit optimierter Einheit",
+    "unit": "abhängig vom Parameter"
+}
+
+# Beispiele (verwenden die definierten Parameter-Namen)
+TOOL_EXAMPLES = [
+    {
+        "title": f"Berechne {FUNCTION_PARAM_1_NAME} (analytisch) bei gegebenen {FUNCTION_PARAM_2_NAME} und {FUNCTION_PARAM_3_NAME}",
+        "input": {FUNCTION_PARAM_1_NAME: "target", FUNCTION_PARAM_2_NAME: FUNCTION_PARAM_2_EXAMPLE, FUNCTION_PARAM_3_NAME: FUNCTION_PARAM_3_EXAMPLE},
+        "output": f"{FUNCTION_PARAM_1_NAME} in optimierter Einheit mit geschlossener Formel"
+    },
+    {
+        "title": f"Berechne {FUNCTION_PARAM_2_NAME} (analytisch) bei gegebenen {FUNCTION_PARAM_1_NAME} und {FUNCTION_PARAM_3_NAME}", 
+        "input": {FUNCTION_PARAM_1_NAME: "40 cm²", FUNCTION_PARAM_2_NAME: "target", FUNCTION_PARAM_3_NAME: FUNCTION_PARAM_3_EXAMPLE},
+        "output": f"{FUNCTION_PARAM_2_NAME} in optimierter Einheit mit geschlossener Formel"
+    },
+    {
+        "title": f"Berechne {FUNCTION_PARAM_3_NAME} (analytisch) bei gegebenen {FUNCTION_PARAM_1_NAME} und {FUNCTION_PARAM_2_NAME}",
+        "input": {FUNCTION_PARAM_1_NAME: "40 cm²", FUNCTION_PARAM_2_NAME: FUNCTION_PARAM_2_EXAMPLE, FUNCTION_PARAM_3_NAME: "target"},
+        "output": f"{FUNCTION_PARAM_3_NAME} in optimierter Einheit mit geschlossener Formel"
+    }
+]
+
+# Annahmen
+TOOL_ASSUMPTIONS = [
+    "Dreieck mit bekannter Grundseite und zugehöriger Höhe",
+    "Alle Eingabewerte sind positiv",
+    "Höhe steht senkrecht zur Grundseite"
+]
+
+# Einschränkungen  
+TOOL_LIMITATIONS = [
+    "Nur für positive Werte gültig",
+    "Höhe muss zur Grundseite gehören",
+    "Nicht für spitze Winkel ohne entsprechende Höhe"
+]
+
+# Mathematische Grundlagen
+MATHEMATICAL_FOUNDATION = "Dreiecksformel: A = (g × h) / 2, wobei g die Grundseite und h die Höhe ist"
+
+# Normengrundlage
+NORM_FOUNDATION = ""
+
+# ===== AUTOMATISCH BERECHNET =====
+PARAMETER_COUNT = len([name for name in globals() if name.startswith('PARAMETER_')])
+
+# ================================================================================================
+# 🔧 IMPORTS & DEPENDENCIES 🔧
+# ================================================================================================
+
+from typing import Dict, Annotated
+import sys
+import os
+
+# Import des Einheiten-Utilities
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from engineering_mcp.units_utils import validate_inputs_have_units, optimize_output_unit, UnitsError, ureg
+
+# ================================================================================================
+# 🎯 TOOL FUNCTIONS 🎯
+# ================================================================================================
+
+def solve_dreieck(
+    # ⚠️ Hier die konfigurierten Parameter-Namen und -Beschreibungen verwenden:
+    flaeche: Annotated[str, FUNCTION_PARAM_1_DESC],  
+    grundseite: Annotated[str, FUNCTION_PARAM_2_DESC],
+    hoehe: Annotated[str, FUNCTION_PARAM_3_DESC]
+) -> Dict:
+    """
+    Löst die Dreiecksformel A = (g × h) / 2 nach verschiedenen Variablen auf.
+    
+    Verwendet die oben definierten Parameter-Konfigurationen für konsistente 
+    Beschreibungen und Beispiele.
+    """
+    try:
+        # Identifiziere target Parameter
+        target_params = []
+        given_params = []
+        
+        params_info = {
+            'var1': flaeche,
+            'var2': grundseite, 
+            'var3': hoehe
+        }
+        
+        for param_name, param_value in params_info.items():
+            if param_value.lower().strip() == "target":
+                target_params.append(param_name)
+            else:
+                given_params.append(param_name)
+        
+        # Validierung: Genau ein target Parameter
+        if len(target_params) != 1:
+            return {
+                "error": f"Genau ein Parameter muss 'target' sein (gefunden: {len(target_params)})",
+                "target_params": target_params,
+                "example": f"solve_dreieck({FUNCTION_PARAM_1_NAME}='target', {FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}', {FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}')",
+                "hinweis": "Geben Sie genau einen Parameter als 'target' an"
+            }
+        
+        if len(given_params) != 2:
+            return {
+                "error": f"Genau 2 Parameter müssen Werte mit Einheiten haben (gefunden: {len(given_params)})",
+                "given_params": given_params,
+                "example": f"solve_dreieck({FUNCTION_PARAM_1_NAME}='target', {FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}', {FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}')"
+            }
+        
+        target_param = target_params[0]
+        
+        # Erstelle kwargs für Validierung (nur gegebene Parameter)
+        validation_kwargs = {}
+        param_names = {
+            'var1': 'flaeche',
+            'var2': 'grundseite', 
+            'var3': 'hoehe'
+        }
+        
+        for param_name in given_params:
+            real_param_name = param_names[param_name]
+            validation_kwargs[real_param_name] = params_info[param_name]
+
+        # Validierung der Eingaben
+        try:
+            params = validate_inputs_have_units(**validation_kwargs)
+        except UnitsError as e:
+            return {
+                "error": "Einheiten-Fehler",
+                "message": str(e),
+                "hinweis": "Alle Nicht-Target-Parameter müssen mit Einheiten angegeben werden",
+                "beispiele": [
+                    f"{FUNCTION_PARAM_1_NAME}='{FUNCTION_PARAM_1_EXAMPLE}'",
+                    f"{FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}'", 
+                    f"{FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}'"
+                ]
+            }
+        
+        # Berechnung basierend auf target Parameter
+        if target_param == 'var1':  # flaeche
+            # Berechne Fläche: A = (g × h) / 2
+            grundseite_si = params['grundseite']['si_value']
+            hoehe_si = params['hoehe']['si_value']
+            
+            if grundseite_si <= 0 or hoehe_si <= 0:
+                return {"error": "Alle Werte müssen positiv sein"}
+            
+            flaeche_si = (grundseite_si * hoehe_si) / 2
+            
+            # Optimiere Ausgabe-Einheit
+            ref_unit = params['hoehe']['original_unit'] if hoehe_si < grundseite_si else params['grundseite']['original_unit']
+            flaeche_quantity = flaeche_si * ureg.meter**2
+            flaeche_optimized = optimize_output_unit(flaeche_quantity, ref_unit)
+            
+            return {
+                "📊 ANALYTICAL SOLUTION": "Geschlossene Formel",
+                "target_parameter": "flaeche",
+                "gegebene_werte": {
+                    "grundseite": grundseite,
+                    "hoehe": hoehe
+                },
+                "ergebnis": {
+                    "flaeche": f"{flaeche_optimized.magnitude:.6g} {flaeche_optimized.units}"
+                },
+                "formel": "A = (g × h) / 2",
+                "si_werte": {
+                    "flaeche_si": f"{flaeche_si:.6g} m²",
+                    "grundseite_si": f"{grundseite_si:.6g} m",
+                    "hoehe_si": f"{hoehe_si:.6g} m"
+                }
+            }
+            
+        elif target_param == 'var2':  # grundseite
+            # Berechne Grundseite: g = 2A / h
+            flaeche_si = params['flaeche']['si_value']
+            hoehe_si = params['hoehe']['si_value']
+            
+            if flaeche_si <= 0 or hoehe_si <= 0:
+                return {"error": "Alle Werte müssen positiv sein"}
+            
+            grundseite_si = (2 * flaeche_si) / hoehe_si
+            
+            # Optimiere Ausgabe-Einheit
+            ref_unit = params['hoehe']['original_unit']
+            grundseite_quantity = grundseite_si * ureg.meter
+            grundseite_optimized = optimize_output_unit(grundseite_quantity, ref_unit)
+            
+            return {
+                "📊 ANALYTICAL SOLUTION": "Geschlossene Formel",
+                "target_parameter": "grundseite",
+                "gegebene_werte": {
+                    "flaeche": flaeche,
+                    "hoehe": hoehe
+                },
+                "ergebnis": {
+                    "grundseite": f"{grundseite_optimized.magnitude:.6g} {grundseite_optimized.units}"
+                },
+                "formel": "g = 2A / h",
+                "si_werte": {
+                    "grundseite_si": f"{grundseite_si:.6g} m",
+                    "flaeche_si": f"{flaeche_si:.6g} m²",
+                    "hoehe_si": f"{hoehe_si:.6g} m"
+                }
+            }
+            
+        elif target_param == 'var3':  # hoehe
+            # Berechne Höhe: h = 2A / g
+            flaeche_si = params['flaeche']['si_value']
+            grundseite_si = params['grundseite']['si_value']
+            
+            if flaeche_si <= 0 or grundseite_si <= 0:
+                return {"error": "Alle Werte müssen positiv sein"}
+            
+            hoehe_si = (2 * flaeche_si) / grundseite_si
+            
+            # Optimiere Ausgabe-Einheit
+            ref_unit = params['grundseite']['original_unit']
+            hoehe_quantity = hoehe_si * ureg.meter
+            hoehe_optimized = optimize_output_unit(hoehe_quantity, ref_unit)
+            
+            return {
+                "📊 ANALYTICAL SOLUTION": "Geschlossene Formel",
+                "target_parameter": "hoehe",
+                "gegebene_werte": {
+                    "flaeche": flaeche,
+                    "grundseite": grundseite
+                },
+                "ergebnis": {
+                    "hoehe": f"{hoehe_optimized.magnitude:.6g} {hoehe_optimized.units}"
+                },
+                "formel": "h = 2A / g",
+                "si_werte": {
+                    "hoehe_si": f"{hoehe_si:.6g} m",
+                    "flaeche_si": f"{flaeche_si:.6g} m²",
+                    "grundseite_si": f"{grundseite_si:.6g} m"
+                }
+            }
+        
+    except UnitsError as e:
+        return {"error": f"Einheiten-Fehler: {str(e)}"}
+    except Exception as e:
+        return {
+            "error": f"Fehler in solve_dreieck: {str(e)}",
+            "type": type(e).__name__
+        }
+
+# ================================================================================================
+# 🎯 METADATA FUNCTIONS 🎯
+# ================================================================================================
+
+def get_metadata():
+    """Gibt die Metadaten des Tools für Registry-Discovery zurück"""
+    return {
+        # ✅ Neue Registry-Struktur
+        "tool_name": TOOL_NAME,
+        "short_description": TOOL_SHORT_DESCRIPTION,  # ✅ Neu
+        "description": TOOL_DESCRIPTION,  # ✅ Neu
+        "tags": TOOL_TAGS,  # ✅ Neu: "tags" statt "tool_tags"
+        "has_solving": HAS_SOLVING,
+        
+        # ✅ KRITISCH: Parameters Dictionary für Registry-Discovery
+        "parameters": {
+            FUNCTION_PARAM_1_NAME: PARAMETER_FLAECHE,
+            FUNCTION_PARAM_2_NAME: PARAMETER_GRUNDSEITE,
+            FUNCTION_PARAM_3_NAME: PARAMETER_HOEHE,
+        },
+        
+        # ✅ Beispiele im neuen Format
+        "examples": TOOL_EXAMPLES,
+        
+        # ✅ Vollständige Metadaten für erweiterte Nutzung
+        "tool_version": TOOL_VERSION,
+        "output_result": OUTPUT_RESULT,
+        "tool_assumptions": TOOL_ASSUMPTIONS,
+        "tool_limitations": TOOL_LIMITATIONS,
+        "mathematical_foundation": MATHEMATICAL_FOUNDATION,
+        "norm_foundation": NORM_FOUNDATION,
+        
+        # ✅ Backwards Compatibility (falls andere Teile das alte Format erwarten)
+        "tool_tags": TOOL_TAGS,
+        "tool_short_description": TOOL_SHORT_DESCRIPTION,
+        "parameter_count": len([name for name in globals() if name.startswith('PARAMETER_')]),
+        "tool_description": TOOL_DESCRIPTION,
+        "parameter_count": PARAMETER_COUNT,
+        "parameter_flaeche": PARAMETER_FLAECHE,
+        "parameter_grundseite": PARAMETER_GRUNDSEITE,
+        "parameter_hoehe": PARAMETER_HOEHE
+    }
+
+def calculate(flaeche: str, grundseite: str, hoehe: str) -> Dict:
+    """Legacy-Funktion für Kompatibilität"""
+    return solve_dreieck(flaeche, grundseite, hoehe) 

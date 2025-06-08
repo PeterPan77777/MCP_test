@@ -6,6 +6,40 @@ Ermöglicht umfassende Abfragen der ISO-metrischen Gewinde-Datenbank
 mit Vorspannkräften, Geometrie und VDI 2230-Berechnungen.
 """
 
+# 🎯 TOOL-KONFIGURATION
+FUNCTION_PARAM_GEWINDE_NAME = "gewinde"
+FUNCTION_PARAM_GEWINDE_DESC = "Gewindebezeichnung (z.B. 'M12', 'M16x1.5') oder leer für alle"
+FUNCTION_PARAM_GEWINDE_EXAMPLE = "M24"
+
+FUNCTION_PARAM_GEWINDE_BEREICH_NAME = "gewinde_bereich"
+FUNCTION_PARAM_GEWINDE_BEREICH_DESC = "Bereichsabfrage mit {'von': 'M12', 'bis': 'M24'} oder leer für Einzelgewinde"
+FUNCTION_PARAM_GEWINDE_BEREICH_EXAMPLE = "{'von': 'M16', 'bis': 'M30'}"
+
+FUNCTION_PARAM_SCHRAUBENTYP_NAME = "schraubentyp"
+FUNCTION_PARAM_SCHRAUBENTYP_DESC = "Schraubentyp: 'Schaftschrauben', 'Dehnschrauben' oder 'beide'"
+FUNCTION_PARAM_SCHRAUBENTYP_EXAMPLE = "Schaftschrauben"
+
+FUNCTION_PARAM_FESTIGKEITSKLASSE_NAME = "festigkeitsklasse"
+FUNCTION_PARAM_FESTIGKEITSKLASSE_DESC = "Festigkeitsklasse (z.B. '8.8', '10.9', '12.9') oder leer für alle"
+FUNCTION_PARAM_FESTIGKEITSKLASSE_EXAMPLE = "10.9"
+
+FUNCTION_PARAM_REIBBEIWERT_NAME = "reibbeiwert"
+FUNCTION_PARAM_REIBBEIWERT_DESC = "Reibungskoeffizient: '0.08', '0.10', '0.12', '0.14', '0.16' oder 'alle'"
+FUNCTION_PARAM_REIBBEIWERT_EXAMPLE = "0.10"
+
+FUNCTION_PARAM_MIN_VORSPANNKRAFT_NAME = "min_vorspannkraft"
+FUNCTION_PARAM_MIN_VORSPANNKRAFT_DESC = "Mindest-Vorspannkraft mit Einheit (z.B. '100 kN', '50000 N') oder leer"
+FUNCTION_PARAM_MIN_VORSPANNKRAFT_EXAMPLE = "200 kN"
+
+FUNCTION_PARAM_AUSGABE_DETAIL_NAME = "ausgabe_detail"
+FUNCTION_PARAM_AUSGABE_DETAIL_DESC = "Detail-Level: 'minimal', 'standard', 'vollständig'"
+FUNCTION_PARAM_AUSGABE_DETAIL_EXAMPLE = "standard"
+
+FUNCTION_PARAM_BERECHNUNG_ZEIGEN_NAME = "berechnung_zeigen"
+FUNCTION_PARAM_BERECHNUNG_ZEIGEN_DESC = "Zeigt vollständige Berechnungsdokumentation"
+FUNCTION_PARAM_BERECHNUNG_ZEIGEN_EXAMPLE = "false"
+
+# 🔧 IMPORTS
 from typing import Dict, Optional, List, Union
 import pandas as pd
 import numpy as np
@@ -15,6 +49,8 @@ import re
 
 # Import des CSV-Zugriffs
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# 🎯 TOOL FUNCTIONS
 
 def parse_gewinde_bezeichnung(gewinde: str) -> Dict:
     """
@@ -36,7 +72,7 @@ def parse_gewinde_bezeichnung(gewinde: str) -> Dict:
     if not match:
         return {
             "error": f"Ungültige Gewindebezeichnung: {gewinde}",
-            "hinweis": "Format: 'M24' (Regelgewinde) oder 'M24x2.0' (Feingewinde)"
+            "hinweis": f"Format: '{FUNCTION_PARAM_GEWINDE_EXAMPLE}' (Regelgewinde) oder 'M24x2.0' (Feingewinde)"
         }
     
     durchmesser = float(match.group(1))
@@ -150,7 +186,7 @@ def parse_kraft_einheit(kraft_str: str) -> float:
     match = re.match(pattern, kraft_str, re.IGNORECASE)
     
     if not match:
-        raise ValueError(f"Ungültiges Kraftformat: {kraft_str}. Verwenden Sie z.B. '100 kN' oder '50000 N'")
+        raise ValueError(f"Ungültiges Kraftformat: {kraft_str}. Verwenden Sie z.B. '{FUNCTION_PARAM_MIN_VORSPANNKRAFT_EXAMPLE}' oder '50000 N'")
     
     wert = float(match.group(1))
     einheit = match.group(2).upper()
@@ -331,7 +367,7 @@ FK 12.9: Rp = 1100 N/mm²
 
 ### ⚠️ **Wichtige Hinweise:**
 - Berechnung für 90% Vorespannung (VDI 2230 Standard)
-- Bei anderen Vorespannungen: F_sp_neu = F_sp_tabelle × (Vorespannung_% / 90%)
+- Bei anderen Voerspannungen: F_sp_neu = F_sp_tabelle × (Vorespannung_% / 90%)
 - Reibungskoeffizient μ abhängig von Schmierung und Oberflächenqualität
 - Dehnschrauben haben ca. 71-73% der Schaftschrauben-Vorspannkraft"""
 
@@ -348,6 +384,8 @@ def schrauben_datenbank(
     berechnung_zeigen: bool = False
 ) -> Dict:
     """
+    📊 DATABASE SEARCH AND ANALYSIS SOLUTION
+    
     Flexible Hauptabfrage für Schraubendaten aus der ISO-Gewinde-Datenbank.
     
     Args:
@@ -371,16 +409,16 @@ def schrauben_datenbank(
         # Parameter-Validierung
         if gewinde is None and gewinde_bereich is None:
             return {
-                "error": "Entweder 'gewinde' oder 'gewinde_bereich' muss angegeben werden",
+                "error": f"Entweder '{FUNCTION_PARAM_GEWINDE_NAME}' oder '{FUNCTION_PARAM_GEWINDE_BEREICH_NAME}' muss angegeben werden",
                 "beispiele": [
-                    'schrauben_datenbank(gewinde="M24")',
-                    'schrauben_datenbank(gewinde_bereich={"von": "M12", "bis": "M24"})'
+                    f'schrauben_datenbank({FUNCTION_PARAM_GEWINDE_NAME}="{FUNCTION_PARAM_GEWINDE_EXAMPLE}")',
+                    f'schrauben_datenbank({FUNCTION_PARAM_GEWINDE_BEREICH_NAME}={FUNCTION_PARAM_GEWINDE_BEREICH_EXAMPLE})'
                 ]
             }
         
         if gewinde is not None and gewinde_bereich is not None:
             return {
-                "error": "Nur entweder 'gewinde' oder 'gewinde_bereich' angeben, nicht beide"
+                "error": f"Nur entweder '{FUNCTION_PARAM_GEWINDE_NAME}' oder '{FUNCTION_PARAM_GEWINDE_BEREICH_NAME}' angeben, nicht beide"
             }
         
         # Validiere Schraubentyp
@@ -528,27 +566,23 @@ Prüfen Sie, ob Reihe 1-Alternativen verfügbar sind."""
         "detail_level": detail_level
     }
 
-# Tool-Metadaten für Registry
-TOOL_METADATA = {
-    "name": "schrauben_datenbank",
-    "short_description": "Schrauben-Datenbank - Flexible Abfrage von Gewindedaten und Vorspannkräften",
-    "description": """Flexible Hauptabfrage für die ISO-metrische Gewinde-Datenbank mit 1.081 Gewindeeinträgen.
+def get_metadata():
+    """
+    Liefert Tool-Metadaten für Registry-Discovery.
+    
+    Returns:
+        Dict: Tool-Metadaten im neuen System-Format
+    """
+    return {
+        "tool_name": "schrauben_datenbank",
+        "short_description": "Schrauben-Datenbank - Flexible Abfrage von Gewindedaten und Vorspannkräften",
+        "description": f"""Flexible Hauptabfrage für die ISO-metrische Gewinde-Datenbank mit 1.081 Gewindeeinträgen.
 
 Ermöglicht umfassende Abfragen von:
 - Einzelgewinde oder Gewinde-Bereichen
 - Vorspannkräfte für Schaft- und Dehnschrauben
 - Geometrische Gewindedaten
 - VDI 2230-Berechnungsdokumentation
-
-Parameter:
-- gewinde: Einzelgewinde "M24" (Regelgewinde) oder "M24x2.0" (Feingewinde)
-- gewinde_bereich: {"von": "M12", "bis": "M24"} für Bereichsabfragen
-- schraubentyp: "Schaftschrauben", "Dehnschrauben", "beide"
-- festigkeitsklasse: "8.8", "10.9", "12.9", "alle" (zukünftig)
-- reibbeiwert: "0.08" bis "0.16", "alle" (zukünftig)
-- min_vorspannkraft: Kraft mit Einheit z.B. "100 kN", "50000 N"
-- ausgabe_detail: "minimal", "standard", "vollständig"
-- berechnung_zeigen: True/False für vollständige Berechnungsdokumentation
 
 Automatische Features:
 - Erkennung Regel-/Feingewinde
@@ -557,36 +591,82 @@ Automatische Features:
 - VDI 2230-konforme Berechnungen
 
 Normen: DIN 13-1 bis DIN 13-11, DIN 13-6, VDI 2230, ISO 262""",
-    "tags": ["DIN 13", "VDI 2230"],
-    "function": schrauben_datenbank,
-    "examples": [
-        {
-            "description": "Vollständige Analyse eines Gewindes",
-            "call": 'schrauben_datenbank(gewinde="M24", ausgabe_detail="vollständig", berechnung_zeigen=True)',
-            "result": "Komplette Schraubendaten mit Berechnungsdokumentation"
-        },
-        {
-            "description": "Bereichssuche mit Vorspannkraft-Filter",
-            "call": 'schrauben_datenbank(gewinde_bereich={"von": "M16", "bis": "M30"}, min_vorspannkraft="200 kN")',
-            "result": "Übersicht aller Gewinde im Bereich mit ausreichender Vorspannkraft"
-        },
-        {
-            "description": "Vergleich Schaft- vs Dehnschrauben",
-            "call": 'schrauben_datenbank(gewinde="M20", schraubentyp="beide")',
-            "result": "Vergleichstabelle beider Schraubentypen"
-        }
-    ]
-}
+        "tags": ["DIN 13", "VDI 2230", "schrauben"],
 
+        "has_solving": "none",
+        "parameters": {
+            FUNCTION_PARAM_GEWINDE_NAME: {
+                "type": "string",
+                "description": FUNCTION_PARAM_GEWINDE_DESC,
+                "default": ""
+            },
+            FUNCTION_PARAM_GEWINDE_BEREICH_NAME: {
+                "type": "object",
+                "description": FUNCTION_PARAM_GEWINDE_BEREICH_DESC,
+                "default": {}
+            },
+            FUNCTION_PARAM_SCHRAUBENTYP_NAME: {
+                "type": "string",
+                "description": FUNCTION_PARAM_SCHRAUBENTYP_DESC,
+                "default": FUNCTION_PARAM_SCHRAUBENTYP_EXAMPLE
+            },
+            FUNCTION_PARAM_FESTIGKEITSKLASSE_NAME: {
+                "type": "string",
+                "description": FUNCTION_PARAM_FESTIGKEITSKLASSE_DESC,
+                "default": ""
+            },
+            FUNCTION_PARAM_REIBBEIWERT_NAME: {
+                "type": "string",
+                "description": FUNCTION_PARAM_REIBBEIWERT_DESC,
+                "default": "alle"
+            },
+            FUNCTION_PARAM_MIN_VORSPANNKRAFT_NAME: {
+                "type": "string",
+                "description": FUNCTION_PARAM_MIN_VORSPANNKRAFT_DESC,
+                "default": ""
+            }
+        },
+        "examples": [
+            {
+                "description": "Vollständige Analyse eines Gewindes",
+                "parameters": {FUNCTION_PARAM_GEWINDE_NAME: FUNCTION_PARAM_GEWINDE_EXAMPLE, FUNCTION_PARAM_AUSGABE_DETAIL_NAME: "vollständig", FUNCTION_PARAM_BERECHNUNG_ZEIGEN_NAME: True},
+                "result": "Komplette Schraubendaten mit Berechnungsdokumentation"
+            },
+            {
+                "description": "Bereichssuche mit Vorspannkraft-Filter",
+                "parameters": {FUNCTION_PARAM_GEWINDE_BEREICH_NAME: {"von": "M16", "bis": "M30"}, FUNCTION_PARAM_MIN_VORSPANNKRAFT_NAME: FUNCTION_PARAM_MIN_VORSPANNKRAFT_EXAMPLE},
+                "result": "Übersicht aller Gewinde im Bereich mit ausreichender Vorspannkraft"
+            },
+            {
+                "description": "Vergleich Schaft- vs Dehnschrauben",
+                "parameters": {FUNCTION_PARAM_GEWINDE_NAME: "M20", FUNCTION_PARAM_SCHRAUBENTYP_NAME: "beide"},
+                "result": "Vergleichstabelle beider Schraubentypen"
+            }
+        ]
+    }
+
+def calculate(**kwargs) -> Dict:
+    """
+    Führt Schrauben-Datenbankabfrage durch.
+    
+    Args:
+        **kwargs: Alle Parameter für die Datenbankabfrage
+        
+    Returns:
+        Dict: Schrauben-Datenbank Ergebnisse
+    """
+    return schrauben_datenbank(**kwargs)
+
+# 🎯 METADATA
 if __name__ == "__main__":
     # Test-Beispiele
-    print("=== Schrauben-Datenbank Tests ===")
+    print("=== Schrauben-Datenbank Template Tests ===")
     
     # Test 1: Einzelgewinde
     result1 = schrauben_datenbank(gewinde="M10")
     print("Test 1 - M10 Einzelgewinde:")
     if 'gewinde_daten' in result1:
-        print(result1['gewinde_daten'][:500] + "...")
+        print(result1['gewinde_daten'][:300] + "...")
     else:
         print(result1)
     
@@ -596,6 +676,6 @@ if __name__ == "__main__":
     result2 = schrauben_datenbank(gewinde_bereich={"von": "M10", "bis": "M16"})
     print("Test 2 - Bereichsabfrage:")
     if 'gewinde_uebersicht' in result2:
-        print(result2['gewinde_uebersicht'][:500] + "...")
+        print(result2['gewinde_uebersicht'][:300] + "...")
     else:
         print(result2) 

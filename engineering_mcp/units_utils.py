@@ -241,3 +241,54 @@ def validate_inputs_have_units(**kwargs) -> Dict[str, Any]:
         }
     
     return result 
+
+def convert_pressure(pressure_value: str, target_unit: str) -> Dict:
+    """
+    Konvertiert Druckwerte zwischen verschiedenen Einheiten.
+    
+    Args:
+        pressure_value: Druckwert mit Einheit (z.B. '1.5 bar', '150 kPa', '21.75 psi')
+        target_unit: Zieleinheit (z.B. 'bar', 'psi', 'Pa', 'kPa', 'MPa', 'mbar', 'atm', 'mmHg', 'inHg')
+        
+    Returns:
+        Dict mit konvertiertem Wert und Details
+        
+    Raises:
+        UnitsError: Bei ungültigen Einheiten oder Konvertierungsfehlern
+    """
+    try:
+        # Parse Eingabewert
+        value, unit_str = parse_value_with_unit(pressure_value)
+        
+        # Erstelle Pint Quantity
+        input_quantity = value * ureg(unit_str)
+        
+        # Prüfe ob es sich um eine Druckeinheit handelt
+        if input_quantity.dimensionality != ureg.pascal.dimensionality:
+            raise UnitsError(f"'{pressure_value}' ist keine gültige Druckeinheit")
+        
+        # Konvertiere zur Zieleinheit
+        try:
+            target_quantity = input_quantity.to(target_unit)
+        except Exception as e:
+            raise UnitsError(f"Kann nicht von '{unit_str}' nach '{target_unit}' konvertieren: {str(e)}")
+        
+        return {
+            "input": {
+                "value": value,
+                "unit": unit_str,
+                "formatted": pressure_value
+            },
+            "output": {
+                "value": target_quantity.magnitude,
+                "unit": target_unit,
+                "formatted": f"{target_quantity.magnitude:.6g} {target_unit}"
+            },
+            "conversion_factor": target_quantity.magnitude / value,
+            "si_value": f"{input_quantity.to_base_units().magnitude:.6g} Pa"
+        }
+        
+    except UnitsError:
+        raise
+    except Exception as e:
+        raise UnitsError(f"Fehler bei Druckkonvertierung: {str(e)}") 

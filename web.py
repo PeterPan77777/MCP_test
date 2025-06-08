@@ -3,7 +3,7 @@ import os, uvicorn
 from starlette.applications import Starlette
 from starlette.responses import PlainTextResponse
 from starlette.routing import Route
-from server import mcp, init_engineering_tools
+from server import mcp, init_all_tools
 
 # 1️⃣  Sub-Apps: internes Prefix entfernen (path="/")
 http_app = mcp.http_app(path="/")                        # registriert "/"
@@ -19,8 +19,8 @@ async def health(_):
 
 # 4️⃣  Haupt-App mit erweitertem Lifespan für Engineering-Tools
 async def lifespan(app):
-    # Startup: Engineering-Tools initialisieren
-    await init_engineering_tools()
+    # Startup: Alle Tools initialisieren
+    await init_all_tools()
     
     # Original lifespan durchführen
     async with http_app.lifespan(app):

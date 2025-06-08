@@ -1,0 +1,499 @@
+{% extends "base.html" %}
+
+{% block title %}Bulk Metadaten bearbeiten - Engineering Tag Manager{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+    <div class="row">
+        <div class="col-md-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Übersicht</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Bulk Metadaten bearbeiten</li>
+                </ol>
+            </nav>
+            
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3><i class="bi bi-gear-wide-connected"></i> Bulk Metadaten bearbeiten</h3>
+                <div>
+                    <button class="btn btn-outline-secondary" onclick="window.close()">
+                        <i class="bi bi-x-circle"></i> Schließen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Ausgewählte Tools -->
+        <div class="col-md-4">
+            <div class="card info-card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-list-check"></i> Ausgewählte Tools ({{ tools|length }})</h5>
+                </div>
+                <div class="card-body" style="max-height: 400px; overflow-y: auto;">
+                    {% for tool_name, tool_data in tools.items() %}
+                        <div class="mb-3 p-2 border rounded">
+                            <h6 class="mb-1">{{ tool_name }}</h6>
+                            <small class="text-muted">{{ tool_data.category }}</small><br>
+                            <small class="text-muted">
+                                {% if tool_data.metadata %}
+                                    {{ tool_data.metadata|length }} Metadaten-Parameter
+                                {% else %}
+                                    Keine Metadaten
+                                {% endif %}
+                            </small>
+                        </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- Gemeinsame Metadaten -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-intersect"></i> Gemeinsame Metadaten</h6>
+                </div>
+                <div class="card-body">
+                    {% if common_metadata_keys %}
+                        <div class="mb-2">
+                            {% for key in common_metadata_keys %}
+                                <span class="badge bg-info me-1">{{ key }}</span>
+                            {% endfor %}
+                        </div>
+                        <small class="text-muted">Diese Felder existieren in allen ausgewählten Tools</small>
+                    {% else %}
+                        <p class="text-muted">Keine gemeinsamen Metadaten gefunden</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Bulk-Editor -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-pencil-square"></i> Bulk-Operation auswählen</h5>
+                </div>
+                <div class="card-body">
+                    <!-- Operation auswählen -->
+                    <div class="mb-4">
+                        <label class="form-label"><strong>Operation:</strong></label>
+                        <div class="btn-group w-100" role="group">
+                            <input type="radio" class="btn-check" name="operation" id="op_update" value="update" checked>
+                            <label class="btn btn-outline-primary" for="op_update">
+                                <i class="bi bi-arrow-up-circle"></i> Aktualisieren/Hinzufügen
+                            </label>
+                            
+                            <input type="radio" class="btn-check" name="operation" id="op_remove" value="remove_field">
+                            <label class="btn btn-outline-danger" for="op_remove">
+                                <i class="bi bi-trash"></i> Felder entfernen
+                            </label>
+                        </div>
+                        <small class="text-muted mt-1 d-block">
+                            <span id="operationHelp">Metadaten aktualisieren oder neue Felder hinzufügen</span>
+                        </small>
+                    </div>
+                    
+                    <!-- Metadaten-Formular -->
+                    <form id="bulkMetadataForm">
+                        <div id="updateMode">
+                            <h6 class="text-primary mb-3">Metadaten bearbeiten</h6>
+                            
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Tool Description:</label>
+                                        <textarea class="form-control" name="tool_description" rows="3" 
+                                                placeholder="Neue Beschreibung (leer lassen um nicht zu ändern)"></textarea>
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Tool Category:</label>
+                                        <input type="text" class="form-control" name="tool_category" 
+                                               placeholder="z.B. geometry, schrauben">
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Has Solving:</label>
+                                        <select class="form-select" name="has_solving">
+                                            <option value="">-- Nicht ändern --</option>
+                                            <option value="true">true</option>
+                                            <option value="false">false</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label">Norm Foundation:</label>
+                                        <input type="text" class="form-control" name="norm_foundation" 
+                                               placeholder="z.B. DIN 912, ISO 4762">
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Knowledge Foundation:</label>
+                                        <input type="text" class="form-control" name="knowledge_foundation" 
+                                               placeholder="z.B. Mathematik, Physik">
+                                    </div>
+                                    
+                                    <div class="mb-3">
+                                        <label class="form-label">Version:</label>
+                                        <input type="text" class="form-control" name="version" 
+                                               placeholder="z.B. 1.0.0">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Dynamische Felder -->
+                            <div id="customFields">
+                                <h6 class="text-secondary">Benutzerdefinierte Felder</h6>
+                                <div id="customFieldsContainer">
+                                    <!-- Wird dynamisch gefüllt -->
+                                </div>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" onclick="addCustomField()">
+                                    <i class="bi bi-plus-circle"></i> Feld hinzufügen
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="removeMode" style="display: none;">
+                            <h6 class="text-danger mb-3">Felder zum Entfernen auswählen</h6>
+                            
+                            <div class="alert alert-warning">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                <strong>Achtung:</strong> Die ausgewählten Felder werden aus allen Tools entfernt!
+                            </div>
+                            
+                            <div id="removeFieldsContainer">
+                                {% if common_metadata_keys %}
+                                    {% for key in common_metadata_keys %}
+                                        <div class="form-check mb-2">
+                                            <input class="form-check-input" type="checkbox" name="remove_fields" 
+                                                   value="{{ key }}" id="remove_{{ key }}">
+                                            <label class="form-check-label" for="remove_{{ key }}">
+                                                {{ key }}
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                {% else %}
+                                    <p class="text-muted">Keine gemeinsamen Felder zum Entfernen verfügbar</p>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <!-- Aktions-Buttons -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="createBackup" checked>
+                                <label class="form-check-label" for="createBackup">
+                                    Backups erstellen
+                                </label>
+                            </div>
+                            
+                            <div>
+                                <button type="button" class="btn btn-outline-info me-2" onclick="previewChanges()">
+                                    <i class="bi bi-eye"></i> Vorschau
+                                </button>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="bi bi-check-circle"></i> Änderungen anwenden
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-eye"></i> Vorschau der Bulk-Änderungen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="previewContent">
+                    <!-- Wird per JavaScript gefüllt -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                <button type="button" class="btn btn-success" onclick="applyBulkChanges()">
+                    <i class="bi bi-check-circle"></i> Änderungen anwenden
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Results Modal -->
+<div class="modal fade" id="resultsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-check-circle"></i> Bulk-Operation abgeschlossen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="resultsContent">
+                    <!-- Wird per JavaScript gefüllt -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Schließen</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const selectedTools = {{ tools.keys() | list | tojson | safe }};
+const toolsData = {{ tools | tojson | safe }};
+
+// Operation Mode Handler
+document.querySelectorAll('input[name="operation"]').forEach(radio => {
+    radio.addEventListener('change', function() {
+        updateOperationMode(this.value);
+    });
+});
+
+function updateOperationMode(operation) {
+    const updateMode = document.getElementById('updateMode');
+    const removeMode = document.getElementById('removeMode');
+    const helpText = document.getElementById('operationHelp');
+    
+    if (operation === 'update') {
+        updateMode.style.display = 'block';
+        removeMode.style.display = 'none';
+        helpText.textContent = 'Metadaten aktualisieren oder neue Felder hinzufügen';
+    } else if (operation === 'remove_field') {
+        updateMode.style.display = 'none';
+        removeMode.style.display = 'block';
+        helpText.textContent = 'Ausgewählte Felder aus allen Tools entfernen';
+    }
+}
+
+// Form Submit Handler
+document.getElementById('bulkMetadataForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    applyBulkChanges();
+});
+
+function applyBulkChanges() {
+    const operation = document.querySelector('input[name="operation"]:checked').value;
+    const createBackup = document.getElementById('createBackup').checked;
+    
+    let metadata = {};
+    
+    if (operation === 'update') {
+        const formData = new FormData(document.getElementById('bulkMetadataForm'));
+        for (const [key, value] of formData.entries()) {
+            if (value.trim() && key !== 'operation') {
+                metadata[key] = value.trim();
+            }
+        }
+    } else if (operation === 'remove_field') {
+        const removeFields = document.querySelectorAll('input[name="remove_fields"]:checked');
+        removeFields.forEach(field => {
+            metadata[field.value] = null; // Marker für Entfernung
+        });
+    }
+    
+    if (Object.keys(metadata).length === 0) {
+        alert('Keine Änderungen zum Anwenden ausgewählt!');
+        return;
+    }
+    
+    showLoading();
+    
+    fetch('/api/bulk_update_metadata', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            tool_names: selectedTools,
+            operation: operation,
+            metadata: metadata,
+            create_backup: createBackup
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideLoading();
+        
+        if (data.success) {
+            showResults(data);
+            
+            // Modal schließen falls offen
+            const modal = bootstrap.Modal.getInstance(document.getElementById('previewModal'));
+            if (modal) {
+                modal.hide();
+            }
+        } else {
+            showError(data.error || 'Fehler beim Anwenden der Bulk-Änderungen');
+        }
+    })
+    .catch(error => {
+        hideLoading();
+        showError('Netzwerk-Fehler: ' + error.message);
+    });
+}
+
+function previewChanges() {
+    const operation = document.querySelector('input[name="operation"]:checked').value;
+    let metadata = {};
+    
+    if (operation === 'update') {
+        const formData = new FormData(document.getElementById('bulkMetadataForm'));
+        for (const [key, value] of formData.entries()) {
+            if (value.trim() && key !== 'operation') {
+                metadata[key] = value.trim();
+            }
+        }
+    } else if (operation === 'remove_field') {
+        const removeFields = document.querySelectorAll('input[name="remove_fields"]:checked');
+        removeFields.forEach(field => {
+            metadata[field.value] = null;
+        });
+    }
+    
+    if (Object.keys(metadata).length === 0) {
+        alert('Keine Änderungen zum Anzeigen ausgewählt!');
+        return;
+    }
+    
+    // Erstelle Vorschau
+    let previewHtml = '<div class="table-responsive">';
+    previewHtml += '<table class="table table-striped">';
+    previewHtml += '<thead><tr><th>Tool</th><th>Änderungen</th></tr></thead>';
+    previewHtml += '<tbody>';
+    
+    for (const toolName of selectedTools) {
+        const toolData = toolsData[toolName];
+        const currentMetadata = toolData.metadata || {};
+        
+        previewHtml += `<tr><td><strong>${toolName}</strong><br><small class="text-muted">${toolData.category}</small></td><td>`;
+        
+        if (operation === 'update') {
+            previewHtml += '<div class="mb-2"><strong>Hinzugefügte/Geänderte Felder:</strong></div>';
+            for (const [key, value] of Object.entries(metadata)) {
+                const isNew = !(key in currentMetadata);
+                const isChanged = currentMetadata[key] !== value;
+                const badge = isNew ? 'bg-success' : (isChanged ? 'bg-warning' : 'bg-secondary');
+                const label = isNew ? 'NEU' : (isChanged ? 'GEÄNDERT' : 'UNVERÄNDERT');
+                
+                previewHtml += `<div><span class="badge ${badge} me-1">${label}</span> <strong>${key}:</strong> ${value}</div>`;
+            }
+        } else if (operation === 'remove_field') {
+            previewHtml += '<div class="mb-2"><strong>Entfernte Felder:</strong></div>';
+            for (const key of Object.keys(metadata)) {
+                if (key in currentMetadata) {
+                    previewHtml += `<div><span class="badge bg-danger me-1">ENTFERNT</span> <strong>${key}</strong></div>`;
+                } else {
+                    previewHtml += `<div><span class="badge bg-secondary me-1">NICHT VORHANDEN</span> <strong>${key}</strong></div>`;
+                }
+            }
+        }
+        
+        previewHtml += '</td></tr>';
+    }
+    
+    previewHtml += '</tbody></table></div>';
+    
+    document.getElementById('previewContent').innerHTML = previewHtml;
+    
+    const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+    modal.show();
+}
+
+function showResults(data) {
+    const successful = data.results.filter(r => r.success).length;
+    const failed = data.results.filter(r => !r.success).length;
+    
+    let html = `<div class="alert alert-success">
+        <h6><i class="bi bi-check-circle"></i> Bulk-Operation abgeschlossen</h6>
+        <p>${successful} von ${data.results.length} Tools erfolgreich aktualisiert</p>
+    </div>`;
+    
+    if (failed > 0) {
+        html += `<div class="alert alert-warning">
+            <h6><i class="bi bi-exclamation-triangle"></i> Warnungen</h6>
+            <p>${failed} Tools konnten nicht aktualisiert werden</p>
+        </div>`;
+    }
+    
+    html += '<div class="table-responsive">';
+    html += '<table class="table table-sm">';
+    html += '<thead><tr><th>Tool</th><th>Status</th><th>Details</th></tr></thead>';
+    html += '<tbody>';
+    
+    for (const result of data.results) {
+        const statusClass = result.success ? 'text-success' : 'text-danger';
+        const statusIcon = result.success ? 'bi-check-circle' : 'bi-x-circle';
+        const statusText = result.success ? 'Erfolgreich' : 'Fehler';
+        
+        html += `<tr>
+            <td><strong>${result.tool}</strong></td>
+            <td><i class="bi ${statusIcon} ${statusClass}"></i> ${statusText}</td>
+            <td>${result.error || 'Metadaten aktualisiert'}</td>
+        </tr>`;
+    }
+    
+    html += '</tbody></table></div>';
+    
+    document.getElementById('resultsContent').innerHTML = html;
+    
+    const modal = new bootstrap.Modal(document.getElementById('resultsModal'));
+    modal.show();
+}
+
+function addCustomField() {
+    const fieldName = prompt('Name des neuen Metadaten-Feldes:');
+    if (!fieldName) return;
+    
+    const container = document.getElementById('customFieldsContainer');
+    const fieldDiv = document.createElement('div');
+    fieldDiv.className = 'mb-3 custom-field';
+    fieldDiv.innerHTML = `
+        <label class="form-label">${fieldName}:</label>
+        <div class="input-group">
+            <input type="text" class="form-control" name="${fieldName}" placeholder="Wert eingeben...">
+            <button class="btn btn-outline-danger" type="button" onclick="removeCustomField(this)">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    `;
+    
+    container.appendChild(fieldDiv);
+}
+
+function removeCustomField(button) {
+    button.closest('.custom-field').remove();
+}
+
+// Utility Functions
+function showLoading() {
+    const submitBtn = document.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Anwenden...';
+}
+
+function hideLoading() {
+    const submitBtn = document.querySelector('button[type="submit"]');
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> Änderungen anwenden';
+}
+
+function showError(message) {
+    alert('Fehler: ' + message);
+}
+</script>
+{% endblock %} 

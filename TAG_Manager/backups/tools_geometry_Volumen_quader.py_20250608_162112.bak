@@ -1,0 +1,462 @@
+#!/usr/bin/env python3
+"""
+Quader-Volumen - Berechnet Volumen oder fehlende Kantenlänge eines Quaders
+
+Berechnet Quader-Volumen mit automatischer Einheiten-Konvertierung.
+Alle Eingaben MÜSSEN mit Einheiten angegeben werden.
+
+Löst die Formel V = l × b × h nach verschiedenen Variablen auf.
+Lösbare Variablen: volumen, laenge, breite, hoehe
+
+⚠️ NAMENSKONVENTION: ALLE Parameter-Namen MÜSSEN DEUTSCH sein!
+Beispiele: durchmesser, druck, laenge, breite, hoehe, radius, flaeche, volumen, wanddicke
+
+Quader: Rechteckiger Kasten mit sechs rechteckigen Flächen - V = l × b × h
+"""
+
+# ================================================================================================
+# 🎯 TOOL-KONFIGURATION & PARAMETER-DEFINITIONEN 🎯
+# ================================================================================================
+
+# ===== 🔧 GRUNDKONFIGURATION =====
+TOOL_NAME = "quader_volumen"
+TOOL_TAGS = ["elementar", "Volumen"]
+TOOL_SHORT_DESCRIPTION = "Quader-Volumen - Berechnet Volumen oder fehlende Kantenlänge"
+TOOL_VERSION = "1.0.0"
+HAS_SOLVING = "symbolic"  # Alle Berechnungen sind analytisch lösbar
+
+# ===== 📝 FUNKTIONSPARAMETER-DEFINITIONEN =====
+FUNCTION_PARAM_1_NAME = "volumen"
+FUNCTION_PARAM_1_DESC = "Volumen des Quaders mit Volumeneinheit (z.B. '1000 cm³', '0.001 m³', '1 l') oder 'target' für Berechnung"
+FUNCTION_PARAM_1_EXAMPLE = "1000 cm³"
+
+FUNCTION_PARAM_2_NAME = "laenge"
+FUNCTION_PARAM_2_DESC = "Länge des Quaders mit Längeneinheit (z.B. '10 cm', '100 mm', '0.1 m') oder 'target' für Berechnung"
+FUNCTION_PARAM_2_EXAMPLE = "10 cm"
+
+FUNCTION_PARAM_3_NAME = "breite"
+FUNCTION_PARAM_3_DESC = "Breite des Quaders mit Längeneinheit (z.B. '5 cm', '50 mm', '0.05 m') oder 'target' für Berechnung"
+FUNCTION_PARAM_3_EXAMPLE = "5 cm"
+
+FUNCTION_PARAM_4_NAME = "hoehe"
+FUNCTION_PARAM_4_DESC = "Höhe des Quaders mit Längeneinheit (z.B. '20 cm', '200 mm', '0.2 m') oder 'target' für Berechnung"
+FUNCTION_PARAM_4_EXAMPLE = "20 cm"
+
+# ===== 📊 METADATEN-STRUKTUR =====
+TOOL_DESCRIPTION = f"""Löst die Quader-Volumen-Formel V = l × b × h nach verschiedenen Variablen auf mit TARGET-System.
+
+WICHTIG: Alle Parameter sind PFLICHT - einer als 'target', die anderen mit Einheiten!
+Target-System: Geben Sie 'target' für den zu berechnenden Parameter an.
+
+BERECHNUNGSARTEN:
+{FUNCTION_PARAM_1_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel V = l×b×h)
+{FUNCTION_PARAM_2_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel l = V/(b×h))
+{FUNCTION_PARAM_3_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel b = V/(l×h))
+{FUNCTION_PARAM_4_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel h = V/(l×b))
+
+Quader-Formel: V = l × b × h
+
+Anwendungsbereich: Behältervolumen, Raumberechnung, Kartons, Architektur
+Einschränkungen: Alle Werte müssen positiv sein
+Genauigkeit: Exakte analytische Lösung"""
+
+# Parameter-Definitionen für Metadaten
+PARAMETER_VOLUMEN = {
+    "type": "string",
+    "description": FUNCTION_PARAM_1_DESC,
+    "example": FUNCTION_PARAM_1_EXAMPLE
+}
+
+PARAMETER_LAENGE = {
+    "type": "string", 
+    "description": FUNCTION_PARAM_2_DESC,
+    "example": FUNCTION_PARAM_2_EXAMPLE
+}
+
+PARAMETER_BREITE = {
+    "type": "string",
+    "description": FUNCTION_PARAM_3_DESC,
+    "example": FUNCTION_PARAM_3_EXAMPLE
+}
+
+PARAMETER_HOEHE = {
+    "type": "string",
+    "description": FUNCTION_PARAM_4_DESC,
+    "example": FUNCTION_PARAM_4_EXAMPLE
+}
+
+# Output-Definition
+OUTPUT_RESULT = {
+    "type": "Quantity",
+    "description": "Berechnungsergebnis mit Einheit",
+    "unit": "abhängig vom Parameter"
+}
+
+# Beispiele
+TOOL_EXAMPLES = [
+    {
+        "title": "Berechne Volumen bei gegebenen Kantenlängen",
+        "input": {f"{FUNCTION_PARAM_1_NAME}": "target", f"{FUNCTION_PARAM_2_NAME}": FUNCTION_PARAM_2_EXAMPLE, f"{FUNCTION_PARAM_3_NAME}": FUNCTION_PARAM_3_EXAMPLE, f"{FUNCTION_PARAM_4_NAME}": FUNCTION_PARAM_4_EXAMPLE},
+        "output": "Volumen in optimierter Einheit"
+    },
+    {
+        "title": "Berechne Länge bei gegebenem Volumen", 
+        "input": {f"{FUNCTION_PARAM_1_NAME}": FUNCTION_PARAM_1_EXAMPLE, f"{FUNCTION_PARAM_2_NAME}": "target", f"{FUNCTION_PARAM_3_NAME}": FUNCTION_PARAM_3_EXAMPLE, f"{FUNCTION_PARAM_4_NAME}": FUNCTION_PARAM_4_EXAMPLE},
+        "output": "Länge in optimierter Einheit"
+    },
+    {
+        "title": "Berechne Höhe bei gegebenem Volumen",
+        "input": {f"{FUNCTION_PARAM_1_NAME}": FUNCTION_PARAM_1_EXAMPLE, f"{FUNCTION_PARAM_2_NAME}": FUNCTION_PARAM_2_EXAMPLE, f"{FUNCTION_PARAM_3_NAME}": FUNCTION_PARAM_3_EXAMPLE, f"{FUNCTION_PARAM_4_NAME}": "target"},
+        "output": "Höhe in optimierter Einheit"
+    }
+]
+
+# Mathematische Grundlagen
+MATHEMATICAL_FOUNDATION = "Quader-Volumen: V = l × b × h, wobei l die Länge, b die Breite und h die Höhe ist"
+
+# Annahmen
+TOOL_ASSUMPTIONS = [
+    "Quader mit rechteckigen Flächen",
+    "Alle Eingabewerte sind positiv",
+    "Rechte Winkel an allen Kanten"
+]
+
+# Einschränkungen
+TOOL_LIMITATIONS = [
+    "Nur für positive Werte gültig",
+    "Nur für rechteckige Quader",
+    "Nicht für schräge oder gerundete Formen"
+]
+
+# Referenz-Einheiten
+REFERENCE_UNITS = {
+    f"{FUNCTION_PARAM_1_NAME}": "m³",
+    f"{FUNCTION_PARAM_2_NAME}": "m",
+    f"{FUNCTION_PARAM_3_NAME}": "m",
+    f"{FUNCTION_PARAM_4_NAME}": "m"
+}
+
+# ================================================================================================
+# 🔧 IMPORTS & DEPENDENCIES 🔧
+# ================================================================================================
+
+from typing import Dict, Optional, Annotated
+import sys
+import os
+
+# Import des Einheiten-Utilities
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from engineering_mcp.units_utils import validate_inputs_have_units, optimize_output_unit, UnitsError, ureg
+
+# ================================================================================================
+# 🎯 TOOL FUNCTIONS 🎯
+# ================================================================================================
+
+def solve_quader(
+    volumen: Annotated[str, f"{FUNCTION_PARAM_1_DESC}"],
+    laenge: Annotated[str, f"{FUNCTION_PARAM_2_DESC}"],
+    breite: Annotated[str, f"{FUNCTION_PARAM_3_DESC}"],
+    hoehe: Annotated[str, f"{FUNCTION_PARAM_4_DESC}"]
+) -> Dict:
+    """
+    📊 ANALYTICAL SOLUTION
+    
+    Löst die Quader-Volumen-Formel V = l × b × h nach verschiedenen Variablen auf.
+    
+    Args:
+        volumen: Volumen mit Einheit oder 'target'
+        laenge: Länge mit Einheit oder 'target' 
+        breite: Breite mit Einheit oder 'target'
+        hoehe: Höhe mit Einheit oder 'target'
+    
+    Returns:
+        Dict mit Berechnungsergebnis und Metadaten
+    """
+    try:
+        # Identifiziere target Parameter
+        target_params = []
+        given_params = []
+        
+        params_info = {
+            f'{FUNCTION_PARAM_1_NAME}': volumen,
+            f'{FUNCTION_PARAM_2_NAME}': laenge,
+            f'{FUNCTION_PARAM_3_NAME}': breite,
+            f'{FUNCTION_PARAM_4_NAME}': hoehe
+        }
+        
+        for param_name, param_value in params_info.items():
+            if param_value.lower().strip() == "target":
+                target_params.append(param_name)
+            else:
+                given_params.append(param_name)
+        
+        # Validierung: Genau ein target Parameter
+        if len(target_params) != 1:
+            return {
+                "error": f"Genau ein Parameter muss 'target' sein (gefunden: {len(target_params)})",
+                "target_params": target_params,
+                "example": f"solve_quader({FUNCTION_PARAM_1_NAME}='target', {FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}', {FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}', {FUNCTION_PARAM_4_NAME}='{FUNCTION_PARAM_4_EXAMPLE}')",
+                "hinweis": "Geben Sie genau einen Parameter als 'target' an"
+            }
+        
+        if len(given_params) != 3:
+            return {
+                "error": f"Genau 3 Parameter müssen Werte mit Einheiten haben (gefunden: {len(given_params)})",
+                "given_params": given_params,
+                "example": f"solve_quader({FUNCTION_PARAM_1_NAME}='target', {FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}', {FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}', {FUNCTION_PARAM_4_NAME}='{FUNCTION_PARAM_4_EXAMPLE}')"
+            }
+        
+        target_param = target_params[0]
+        
+        # Erstelle kwargs für Validierung (nur gegebene Parameter)
+        validation_kwargs = {}
+        for param_name in given_params:
+            validation_kwargs[param_name] = params_info[param_name]
+        
+        # Validiere Einheiten und konvertiere zu SI
+        try:
+            params = validate_inputs_have_units(**validation_kwargs)
+        except UnitsError as e:
+            return {
+                "error": "Einheiten-Fehler",
+                "message": str(e),
+                "hinweis": "Alle Nicht-Target-Parameter müssen mit Einheiten angegeben werden",
+                "beispiele": [
+                    f"{FUNCTION_PARAM_1_NAME}='{FUNCTION_PARAM_1_EXAMPLE}'",
+                    f"{FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}'",
+                    f"{FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}'",
+                    f"{FUNCTION_PARAM_4_NAME}='{FUNCTION_PARAM_4_EXAMPLE}'"
+                ]
+            }
+        
+        # Berechnung basierend auf target Parameter
+        if target_param == FUNCTION_PARAM_1_NAME:
+            # Berechne Volumen: V = l × b × h
+            l_si = params[FUNCTION_PARAM_2_NAME]['si_value']  # in Metern
+            b_si = params[FUNCTION_PARAM_3_NAME]['si_value']  # in Metern
+            h_si = params[FUNCTION_PARAM_4_NAME]['si_value']  # in Metern
+            
+            if l_si <= 0 or b_si <= 0 or h_si <= 0:
+                return {"error": "Alle Werte müssen positiv sein"}
+            
+            v_si = l_si * b_si * h_si  # in m³
+            
+            # Optimiere Ausgabe-Einheit (nutze kleinste Dimension als Referenz)
+            dimensions = [
+                (params[FUNCTION_PARAM_2_NAME]['si_value'], params[FUNCTION_PARAM_2_NAME]['original_unit']),
+                (params[FUNCTION_PARAM_3_NAME]['si_value'], params[FUNCTION_PARAM_3_NAME]['original_unit']),
+                (params[FUNCTION_PARAM_4_NAME]['si_value'], params[FUNCTION_PARAM_4_NAME]['original_unit'])
+            ]
+            min_dim = min(dimensions, key=lambda x: x[0])
+            
+            volume_quantity = v_si * ureg.meter**3
+            volume_optimized = optimize_volume_unit(volume_quantity, min_dim[1])
+            
+            return {
+                "target_parameter": FUNCTION_PARAM_1_NAME,
+                "gegebene_werte": {
+                    FUNCTION_PARAM_2_NAME: laenge,
+                    FUNCTION_PARAM_3_NAME: breite,
+                    FUNCTION_PARAM_4_NAME: hoehe
+                },
+                "ergebnis": {
+                    FUNCTION_PARAM_1_NAME: f"{volume_optimized.magnitude:.6g} {volume_optimized.units}"
+                },
+                "formel": "V = l × b × h",
+                "berechnungsart": "📊 ANALYTICAL SOLUTION",
+                "si_werte": {
+                    f"{FUNCTION_PARAM_1_NAME}_si": f"{v_si:.6g} m³",
+                    f"{FUNCTION_PARAM_2_NAME}_si": f"{l_si:.6g} m",
+                    f"{FUNCTION_PARAM_3_NAME}_si": f"{b_si:.6g} m",
+                    f"{FUNCTION_PARAM_4_NAME}_si": f"{h_si:.6g} m"
+                }
+            }
+        
+        elif target_param == FUNCTION_PARAM_2_NAME:
+            # Berechne Länge: l = V / (b × h)
+            v_si = params[FUNCTION_PARAM_1_NAME]['si_value']  # in m³
+            b_si = params[FUNCTION_PARAM_3_NAME]['si_value']  # in Metern
+            h_si = params[FUNCTION_PARAM_4_NAME]['si_value']  # in Metern
+            
+            if v_si <= 0 or b_si <= 0 or h_si <= 0:
+                return {"error": "Alle Werte müssen positiv sein"}
+            
+            l_si = v_si / (b_si * h_si)  # in Metern
+            
+            # Optimiere Ausgabe-Einheit
+            smaller_dim = min(params[FUNCTION_PARAM_3_NAME]['si_value'], params[FUNCTION_PARAM_4_NAME]['si_value'])
+            ref_unit = params[FUNCTION_PARAM_3_NAME]['original_unit'] if params[FUNCTION_PARAM_3_NAME]['si_value'] == smaller_dim else params[FUNCTION_PARAM_4_NAME]['original_unit']
+            
+            length_quantity = l_si * ureg.meter
+            length_optimized = optimize_output_unit(length_quantity, ref_unit)
+            
+            return {
+                "target_parameter": FUNCTION_PARAM_2_NAME,
+                "gegebene_werte": {
+                    FUNCTION_PARAM_1_NAME: volumen,
+                    FUNCTION_PARAM_3_NAME: breite,
+                    FUNCTION_PARAM_4_NAME: hoehe
+                },
+                "ergebnis": {
+                    FUNCTION_PARAM_2_NAME: f"{length_optimized.magnitude:.6g} {length_optimized.units}"
+                },
+                "formel": "l = V / (b × h)",
+                "berechnungsart": "📊 ANALYTICAL SOLUTION",
+                "si_werte": {
+                    f"{FUNCTION_PARAM_1_NAME}_si": f"{v_si:.6g} m³",
+                    f"{FUNCTION_PARAM_2_NAME}_si": f"{l_si:.6g} m",
+                    f"{FUNCTION_PARAM_3_NAME}_si": f"{b_si:.6g} m",
+                    f"{FUNCTION_PARAM_4_NAME}_si": f"{h_si:.6g} m"
+                }
+            }
+        
+        elif target_param == FUNCTION_PARAM_3_NAME:
+            # Berechne Breite: b = V / (l × h)
+            v_si = params[FUNCTION_PARAM_1_NAME]['si_value']  # in m³
+            l_si = params[FUNCTION_PARAM_2_NAME]['si_value']  # in Metern
+            h_si = params[FUNCTION_PARAM_4_NAME]['si_value']  # in Metern
+            
+            if v_si <= 0 or l_si <= 0 or h_si <= 0:
+                return {"error": "Alle Werte müssen positiv sein"}
+            
+            b_si = v_si / (l_si * h_si)  # in Metern
+            
+            # Optimiere Ausgabe-Einheit
+            smaller_dim = min(params[FUNCTION_PARAM_2_NAME]['si_value'], params[FUNCTION_PARAM_4_NAME]['si_value'])
+            ref_unit = params[FUNCTION_PARAM_2_NAME]['original_unit'] if params[FUNCTION_PARAM_2_NAME]['si_value'] == smaller_dim else params[FUNCTION_PARAM_4_NAME]['original_unit']
+            
+            width_quantity = b_si * ureg.meter
+            width_optimized = optimize_output_unit(width_quantity, ref_unit)
+            
+            return {
+                "target_parameter": FUNCTION_PARAM_3_NAME,
+                "gegebene_werte": {
+                    FUNCTION_PARAM_1_NAME: volumen,
+                    FUNCTION_PARAM_2_NAME: laenge,
+                    FUNCTION_PARAM_4_NAME: hoehe
+                },
+                "ergebnis": {
+                    FUNCTION_PARAM_3_NAME: f"{width_optimized.magnitude:.6g} {width_optimized.units}"
+                },
+                "formel": "b = V / (l × h)",
+                "berechnungsart": "📊 ANALYTICAL SOLUTION",
+                "si_werte": {
+                    f"{FUNCTION_PARAM_1_NAME}_si": f"{v_si:.6g} m³",
+                    f"{FUNCTION_PARAM_2_NAME}_si": f"{l_si:.6g} m",
+                    f"{FUNCTION_PARAM_3_NAME}_si": f"{b_si:.6g} m",
+                    f"{FUNCTION_PARAM_4_NAME}_si": f"{h_si:.6g} m"
+                }
+            }
+        
+        elif target_param == FUNCTION_PARAM_4_NAME:
+            # Berechne Höhe: h = V / (l × b)
+            v_si = params[FUNCTION_PARAM_1_NAME]['si_value']  # in m³
+            l_si = params[FUNCTION_PARAM_2_NAME]['si_value']  # in Metern
+            b_si = params[FUNCTION_PARAM_3_NAME]['si_value']  # in Metern
+            
+            if v_si <= 0 or l_si <= 0 or b_si <= 0:
+                return {"error": "Alle Werte müssen positiv sein"}
+            
+            h_si = v_si / (l_si * b_si)  # in Metern
+            
+            # Optimiere Ausgabe-Einheit
+            smaller_dim = min(params[FUNCTION_PARAM_2_NAME]['si_value'], params[FUNCTION_PARAM_3_NAME]['si_value'])
+            ref_unit = params[FUNCTION_PARAM_2_NAME]['original_unit'] if params[FUNCTION_PARAM_2_NAME]['si_value'] == smaller_dim else params[FUNCTION_PARAM_3_NAME]['original_unit']
+            
+            height_quantity = h_si * ureg.meter
+            height_optimized = optimize_output_unit(height_quantity, ref_unit)
+            
+            return {
+                "target_parameter": FUNCTION_PARAM_4_NAME,
+                "gegebene_werte": {
+                    FUNCTION_PARAM_1_NAME: volumen,
+                    FUNCTION_PARAM_2_NAME: laenge,
+                    FUNCTION_PARAM_3_NAME: breite
+                },
+                "ergebnis": {
+                    FUNCTION_PARAM_4_NAME: f"{height_optimized.magnitude:.6g} {height_optimized.units}"
+                },
+                "formel": "h = V / (l × b)",
+                "berechnungsart": "📊 ANALYTICAL SOLUTION",
+                "si_werte": {
+                    f"{FUNCTION_PARAM_1_NAME}_si": f"{v_si:.6g} m³",
+                    f"{FUNCTION_PARAM_2_NAME}_si": f"{l_si:.6g} m",
+                    f"{FUNCTION_PARAM_3_NAME}_si": f"{b_si:.6g} m",
+                    f"{FUNCTION_PARAM_4_NAME}_si": f"{h_si:.6g} m"
+                }
+            }
+        
+        else:
+            return {"error": f"Unbekannter target Parameter: {target_param}"}
+    
+    except Exception as e:
+        return {
+            "error": "Unerwarteter Fehler in solve_quader",
+            "message": str(e),
+            "funktion": "solve_quader"
+        }
+
+def optimize_volume_unit(si_quantity, reference_unit_str: str):
+    """Optimiert die Ausgabe-Einheit für Volumen basierend auf der Referenz-Einheit"""
+    try:
+        return optimize_output_unit(si_quantity, reference_unit_str)
+    except:
+        # Standard-Optimierung wenn Referenz-Einheit nicht funktioniert
+        return optimize_output_unit(si_quantity, "meter")
+
+# ================================================================================================
+# 🎯 METADATA FUNCTIONS 🎯
+# ================================================================================================
+
+def get_metadata():
+    """Generiert die Metadaten für das Tool"""
+    return {
+        "name": TOOL_NAME,
+        "version": TOOL_VERSION,
+        "tags": TOOL_TAGS,
+        "short_description": TOOL_SHORT_DESCRIPTION,
+        "description": TOOL_DESCRIPTION,
+        "parameters": {
+            FUNCTION_PARAM_1_NAME: PARAMETER_VOLUMEN,
+            FUNCTION_PARAM_2_NAME: PARAMETER_LAENGE,
+            FUNCTION_PARAM_3_NAME: PARAMETER_BREITE,
+            FUNCTION_PARAM_4_NAME: PARAMETER_HOEHE
+        },
+        "output": OUTPUT_RESULT,
+        "examples": TOOL_EXAMPLES,
+        "mathematical_foundation": MATHEMATICAL_FOUNDATION,
+        "assumptions": TOOL_ASSUMPTIONS,
+        "limitations": TOOL_LIMITATIONS,
+        "has_solving": HAS_SOLVING,
+        "reference_units": REFERENCE_UNITS
+    }
+
+# Legacy-Wrapper für Abwärtskompatibilität
+def calculate(volume: str, length: str, width: str, height: str) -> Dict:
+    """Legacy-Wrapper-Funktion für Abwärtskompatibilität"""
+    return solve_quader(
+        volumen=volume,
+        laenge=length,
+        breite=width,
+        hoehe=height
+    )
+
+if __name__ == "__main__":
+    # Test-Beispiele
+    print("=== Quader-Tool Tests ===")
+    
+    # Test 1: Volumen berechnen
+    result1 = solve_quader(laenge="10 cm", breite="5 cm", hoehe="2.5 cm")
+    print(f"Test 1 - Volumen: {result1}")
+    
+    # Test 2: Länge berechnen
+    result2 = solve_quader(volumen="125 cm³", breite="5 cm", hoehe="2.5 cm")
+    print(f"Test 2 - Länge: {result2}")
+    
+    # Test 3: Höhe berechnen
+    result3 = solve_quader(volumen="125 cm³", laenge="10 cm", breite="5 cm")
+    print(f"Test 3 - Höhe: {result3}")
+    
+    # Test 4: Fehler - keine Einheit
+    result4 = solve_quader(laenge="10", breite="5 cm", hoehe="2.5 cm")
+    print(f"Test 4 - Keine Einheit: {result4}") 

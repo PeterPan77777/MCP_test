@@ -1,0 +1,619 @@
+{% extends "base.html" %}
+
+{% block title %}Tool-Übersicht - Engineering Tag Manager{% endblock %}
+
+{% block head %}
+<style>
+    .sortable {
+        cursor: pointer;
+        user-select: none;
+        position: relative;
+    }
+    
+    .sortable:hover {
+        background-color: rgba(255,255,255,0.1);
+    }
+    
+    .sort-icon {
+        opacity: 0.5;
+        transition: all 0.2s;
+    }
+    
+    .sortable:hover .sort-icon {
+        opacity: 1;
+    }
+    
+    .sortable.sorted-asc .sort-icon::before {
+        content: "\F149"; /* bi-chevron-up */
+        opacity: 1;
+    }
+    
+    .sortable.sorted-desc .sort-icon::before {
+        content: "\F148"; /* bi-chevron-down */
+        opacity: 1;
+    }
+    
+    .metadata-info {
+        font-size: 0.8em;
+        color: #6c757d;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mt-3">
+    <!-- Sidebar with Filters -->
+    <div class="col-md-3">
+        <div class="sidebar p-3">
+            <h5><i class="bi bi-funnel"></i> Filter & Sortierung</h5>
+            
+            <!-- Statistiken -->
+            <div class="card stats-card mb-3">
+                <div class="card-body">
+                    <h6 class="card-title"><i class="bi bi-graph-up"></i> Statistiken</h6>
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="h4">{{ stats.total_tools or 0 }}</div>
+                            <small>Tools</small>
+                        </div>
+                        <div class="col-6">
+                            <div class="h4">{{ stats.total_tags or 0 }}</div>
+                            <small>Tags</small>
+                        </div>
+                    </div>
+                    <hr style="border-color: rgba(255,255,255,0.3);">
+                    <div class="row text-center">
+                        <div class="col-6">
+                            <div class="h6">{{ stats.tools_with_tags or 0 }}</div>
+                            <small>Mit Tags</small>
+                        </div>
+                        <div class="col-6">
+                            <div class="h6">{{ stats.tools_without_tags or 0 }}</div>
+                            <small>Ohne Tags</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Filter -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-filter"></i> Filter</h6>
+                </div>
+                <div class="card-body">
+                    <!-- Kategorie-Filter -->
+                    <div class="mb-3">
+                        <label class="form-label">Kategorie:</label>
+                        <select id="categoryFilter" class="form-select form-select-sm">
+                            <option value="">Alle Kategorien</option>
+                            {% for category in tools.values() | map(attribute='category') | unique | sort %}
+                            <option value="{{ category }}">
+                                {% if '/' in category %}
+                                    {{ category.split('/')[0] }} → {{ category.split('/')[1:] | join('/') }}
+                                {% else %}
+                                    {{ category }}
+                                {% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <!-- Tag-Filter -->
+                    <div class="mb-3">
+                        <label class="form-label">Tag:</label>
+                        <select id="tagFilter" class="form-select form-select-sm">
+                            <option value="">Alle Tags</option>
+                            {% for tag in available_tags.keys() | sort %}
+                            <option value="{{ tag }}">{{ tag }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <!-- Suchfeld -->
+                    <div class="mb-3">
+                        <label class="form-label">Suche:</label>
+                        <input type="text" id="searchFilter" class="form-control form-control-sm" placeholder="Tool-Name...">
+                    </div>
+                    
+                    <button class="btn btn-outline-secondary btn-sm w-100" onclick="clearFilters()">
+                        <i class="bi bi-x-circle"></i> Filter zurücksetzen
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Sortierung -->
+            <div class="card mb-3">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-sort-down"></i> Sortierung</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2">
+                        <select id="sortBy" class="form-select form-select-sm">
+                            <option value="name">Name</option>
+                            <option value="category">Kategorie</option>
+                            <option value="tags">Anzahl Tags</option>
+                            <option value="tag_names">Tag-Namen</option>
+                        </select>
+                    </div>
+                    <div class="mb-2">
+                        <select id="sortOrder" class="form-select form-select-sm">
+                            <option value="asc">Aufsteigend</option>
+                            <option value="desc">Absteigend</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Bulk-Aktionen -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-check2-square"></i> Bulk-Aktionen</h6>
+                </div>
+                <div class="card-body">
+                    <button class="btn btn-outline-primary btn-sm w-100 mb-2" onclick="selectAll()">
+                        <i class="bi bi-check-all"></i> Alle auswählen
+                    </button>
+                    <button class="btn btn-outline-secondary btn-sm w-100 mb-2" onclick="selectNone()">
+                        <i class="bi bi-square"></i> Auswahl aufheben
+                    </button>
+                    <button class="btn btn-success btn-sm w-100 mb-2" onclick="bulkEdit()" id="bulkEditBtn" disabled>
+                        <i class="bi bi-pencil-square"></i> Tags (<span id="selectedCount">0</span>)
+                    </button>
+                    <button class="btn btn-warning btn-sm w-100" onclick="bulkEditMetadata()" id="bulkMetadataBtn" disabled>
+                        <i class="bi bi-gear"></i> Metadaten (<span id="selectedCountMeta">0</span>)
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main Content -->
+    <div class="col-md-9">
+        <div class="main-content p-3">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4><i class="bi bi-tools"></i> Engineering Tools</h4>
+                <div>
+                    <button class="btn btn-outline-info btn-sm" onclick="refreshData()">
+                        <i class="bi bi-arrow-clockwise"></i> Aktualisieren
+                    </button>
+                    <div class="btn-group" role="group">
+                        <button class="btn btn-outline-secondary btn-sm active" onclick="setView('table')" id="viewTable">
+                            <i class="bi bi-table"></i> Tabelle
+                        </button>
+                        <button class="btn btn-outline-secondary btn-sm" onclick="setView('cards')" id="viewCards">
+                            <i class="bi bi-grid-3x3"></i> Karten
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Loading Indicator -->
+            <div class="text-center loading" id="loadingIndicator">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Lädt...</span>
+                </div>
+                <p class="mt-2">Lade Tool-Daten...</p>
+            </div>
+            
+            <!-- Table View -->
+            <div id="tableView">
+                <div class="table-responsive">
+                    <table class="table table-hover table-tools">
+                        <thead class="table-dark">
+                            <tr>
+                                <th width="30"><input type="checkbox" id="selectAllCheckbox" onchange="toggleAll()"></th>
+                                <th class="sortable" onclick="sortTable('name')" data-sort="name">
+                                    Name <i class="bi bi-chevron-expand sort-icon"></i>
+                                </th>
+                                <th class="sortable" onclick="sortTable('category')" data-sort="category">
+                                    Kategorie <i class="bi bi-chevron-expand sort-icon"></i>
+                                </th>
+                                <th class="sortable" onclick="sortTable('tags')" data-sort="tags">
+                                    Tags <i class="bi bi-chevron-expand sort-icon"></i>
+                                </th>
+                                <th>Metadaten</th>
+                                <th>Aktionen</th>
+                            </tr>
+                        </thead>
+                        <tbody id="toolsTableBody">
+                            <!-- Tools werden per JavaScript geladen -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Cards View -->
+            <div id="cardsView" style="display: none;">
+                <div class="row" id="toolsCardsContainer">
+                    <!-- Cards werden per JavaScript geladen -->
+                </div>
+            </div>
+            
+            <!-- Tools Count -->
+            <div class="mt-3">
+                <small class="text-muted">
+                    <span id="toolsCount">0</span> Tools angezeigt
+                </small>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentView = 'table';
+let allTools = {};
+let selectedTools = new Set();
+let currentSort = { field: 'name', order: 'asc' };
+
+// Initial Load
+document.addEventListener('DOMContentLoaded', function() {
+    loadTools();
+    
+    // Event Listeners für Filter
+    document.getElementById('categoryFilter').addEventListener('change', applyFiltersAndSort);
+    document.getElementById('tagFilter').addEventListener('change', applyFiltersAndSort);
+    document.getElementById('searchFilter').addEventListener('input', debounce(applyFiltersAndSort, 300));
+});
+
+// Debounce-Funktion für Suchfeld
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Tools laden via AJAX
+function loadTools() {
+    showLoading(document.getElementById('loadingIndicator'));
+    
+    fetch('/api/tools')
+        .then(response => response.json())
+        .then(data => {
+            if (data.error) {
+                throw new Error(data.error);
+            }
+            
+            allTools = data.tools;
+            applyFiltersAndSort();
+        })
+        .catch(error => {
+            handleAjaxError({responseJSON: {error: error.message}});
+        })
+        .finally(() => {
+            hideLoading(document.getElementById('loadingIndicator'));
+        });
+}
+
+// Filter und Sortierung anwenden
+function applyFiltersAndSort() {
+    let filteredTools = { ...allTools };
+    
+    // Filter anwenden
+    const categoryFilter = document.getElementById('categoryFilter').value;
+    const tagFilter = document.getElementById('tagFilter').value;
+    const searchText = document.getElementById('searchFilter').value.toLowerCase();
+    
+    if (categoryFilter) {
+        filteredTools = Object.fromEntries(
+            Object.entries(filteredTools).filter(([name, data]) => 
+                data.category === categoryFilter
+            )
+        );
+    }
+    
+    if (tagFilter) {
+        filteredTools = Object.fromEntries(
+            Object.entries(filteredTools).filter(([name, data]) => 
+                data.current_tags.includes(tagFilter)
+            )
+        );
+    }
+    
+    if (searchText) {
+        filteredTools = Object.fromEntries(
+            Object.entries(filteredTools).filter(([name, data]) => 
+                name.toLowerCase().includes(searchText) ||
+                (data.display_name && data.display_name.toLowerCase().includes(searchText)) ||
+                data.category.toLowerCase().includes(searchText) ||
+                (data.current_tags && data.current_tags.some(tag => tag.toLowerCase().includes(searchText)))
+            )
+        );
+    }
+    
+    // Sortierung anwenden
+    const sortedEntries = Object.entries(filteredTools).sort((a, b) => {
+        const [nameA, dataA] = a;
+        const [nameB, dataB] = b;
+        
+        let valueA, valueB;
+        
+        switch (currentSort.field) {
+            case 'name':
+                valueA = nameA.toLowerCase();
+                valueB = nameB.toLowerCase();
+                break;
+            case 'category':
+                valueA = dataA.category.toLowerCase();
+                valueB = dataB.category.toLowerCase();
+                break;
+            case 'tags':
+                valueA = dataA.current_tags.length;
+                valueB = dataB.current_tags.length;
+                break;
+            default:
+                valueA = nameA.toLowerCase();
+                valueB = nameB.toLowerCase();
+        }
+        
+        let result;
+        if (typeof valueA === 'string') {
+            result = valueA.localeCompare(valueB);
+        } else {
+            result = valueA - valueB;
+        }
+        
+        return currentSort.order === 'desc' ? -result : result;
+    });
+    
+    const sortedTools = Object.fromEntries(sortedEntries);
+    
+    renderTools(sortedTools);
+    updateToolsCount(Object.keys(sortedTools).length);
+    updateSortIcons();
+}
+
+// Tabellen-Sortierung
+function sortTable(field) {
+    if (currentSort.field === field) {
+        // Umkehren der Sortierreihenfolge wenn gleiche Spalte
+        currentSort.order = currentSort.order === 'asc' ? 'desc' : 'asc';
+    } else {
+        // Neue Spalte - Standard aufsteigend
+        currentSort.field = field;
+        currentSort.order = 'asc';
+    }
+    
+    applyFiltersAndSort();
+}
+
+// Sortier-Icons aktualisieren
+function updateSortIcons() {
+    // Alle Icons zurücksetzen
+    document.querySelectorAll('.sortable').forEach(header => {
+        header.classList.remove('sorted-asc', 'sorted-desc');
+    });
+    
+    // Aktuelles Sortier-Icon setzen
+    const currentHeader = document.querySelector(`[data-sort="${currentSort.field}"]`);
+    if (currentHeader) {
+        currentHeader.classList.add(currentSort.order === 'asc' ? 'sorted-asc' : 'sorted-desc');
+    }
+}
+
+// Tools rendern
+function renderTools(tools) {
+    if (currentView === 'table') {
+        renderTableView(tools);
+    } else {
+        renderCardsView(tools);
+    }
+}
+
+// Tabellen-Ansicht
+function renderTableView(tools) {
+    const tbody = document.getElementById('toolsTableBody');
+    tbody.innerHTML = '';
+    
+    Object.entries(tools).forEach(([toolName, toolData]) => {
+        const row = document.createElement('tr');
+        
+        // Metadaten-Info erstellen
+        const metadataInfo = toolData.metadata ? 
+            `<span class="metadata-info">${Object.keys(toolData.metadata).length} Parameter</span>` :
+            '<span class="text-muted">Keine Metadaten</span>';
+        
+        row.innerHTML = `
+            <td>
+                <input type="checkbox" class="tool-checkbox" value="${toolName}" 
+                       onchange="updateSelection()" ${selectedTools.has(toolName) ? 'checked' : ''}>
+            </td>
+            <td>
+                <strong>${toolData.display_name || toolName}</strong>
+                <br><small class="text-muted">${toolData.relative_path}</small>
+            </td>
+            <td>
+                                <span class="badge bg-info" title="${toolData.category}">${toolData.category}</span>
+            </td>
+            <td>
+                ${toolData.current_tags.map(tag => `<span class="badge bg-secondary tag-badge">${tag}</span>`).join('')}
+                ${toolData.current_tags.length === 0 ? '<span class="text-muted">Keine Tags</span>' : ''}
+            </td>
+            <td>
+                ${metadataInfo}
+            </td>
+            <td>
+                <div class="btn-group" role="group">
+                <button class="btn btn-sm btn-outline-primary" onclick="editTool('${toolName}')">
+                        <i class="bi bi-tags"></i> Tags
+                    </button>
+                    <button class="btn btn-sm btn-outline-warning" onclick="editMetadata('${toolName}')">
+                        <i class="bi bi-gear"></i> Metadaten
+                </button>
+                </div>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Karten-Ansicht
+function renderCardsView(tools) {
+    const container = document.getElementById('toolsCardsContainer');
+    container.innerHTML = '';
+    
+    Object.entries(tools).forEach(([toolName, toolData]) => {
+        const col = document.createElement('div');
+        col.className = 'col-md-6 col-lg-4 mb-3';
+        
+        const metadataInfo = toolData.metadata ? 
+            `${Object.keys(toolData.metadata).length} Metadaten-Parameter` :
+            'Keine Metadaten';
+        
+        col.innerHTML = `
+            <div class="card tool-card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">${toolData.display_name || toolName}</h6>
+                    <input type="checkbox" class="tool-checkbox" value="${toolName}" 
+                           onchange="updateSelection()" ${selectedTools.has(toolName) ? 'checked' : ''}>
+                </div>
+                <div class="card-body">
+                    <p class="card-text">
+                        <small class="text-muted"><i class="bi bi-folder"></i> ${toolData.category}</small><br>
+                        <small class="text-muted"><i class="bi bi-file-code"></i> ${toolData.relative_path}</small><br>
+                        <small class="metadata-info"><i class="bi bi-gear"></i> ${metadataInfo}</small>
+                    </p>
+                    <div class="mb-2">
+                        ${toolData.current_tags.map(tag => `<span class="badge bg-secondary tag-badge">${tag}</span>`).join('')}
+                        ${toolData.current_tags.length === 0 ? '<span class="text-muted">Keine Tags</span>' : ''}
+                    </div>
+                </div>
+                <div class="card-footer">
+                    <div class="btn-group w-100" role="group">
+                        <button class="btn btn-sm btn-outline-primary" onclick="editTool('${toolName}')">
+                            <i class="bi bi-tags"></i> Tags
+                        </button>
+                        <button class="btn btn-sm btn-outline-warning" onclick="editMetadata('${toolName}')">
+                            <i class="bi bi-gear"></i> Meta
+                    </button>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        container.appendChild(col);
+    });
+}
+
+// View umschalten
+function setView(view) {
+    currentView = view;
+    
+    // Button-Status aktualisieren
+    document.getElementById('viewTable').classList.toggle('active', view === 'table');
+    document.getElementById('viewCards').classList.toggle('active', view === 'cards');
+    
+    // Views umschalten
+    document.getElementById('tableView').style.display = view === 'table' ? 'block' : 'none';
+    document.getElementById('cardsView').style.display = view === 'cards' ? 'block' : 'none';
+    
+    // Tools neu rendern mit aktueller Sortierung
+    applyFiltersAndSort();
+}
+
+// Selection Management
+function updateSelection() {
+    selectedTools.clear();
+    document.querySelectorAll('.tool-checkbox:checked').forEach(checkbox => {
+        selectedTools.add(checkbox.value);
+    });
+    
+    updateBulkButtons();
+    updateSelectAllCheckbox();
+}
+
+function updateBulkButtons() {
+    const bulkBtn = document.getElementById('bulkEditBtn');
+    const metaBtn = document.getElementById('bulkMetadataBtn');
+    const count = selectedTools.size;
+    
+    bulkBtn.disabled = count === 0;
+    metaBtn.disabled = count === 0;
+    document.getElementById('selectedCount').textContent = count;
+    document.getElementById('selectedCountMeta').textContent = count;
+}
+
+function updateSelectAllCheckbox() {
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const checkboxes = document.querySelectorAll('.tool-checkbox');
+    const checkedCount = document.querySelectorAll('.tool-checkbox:checked').length;
+    
+    selectAllCheckbox.checked = checkedCount > 0 && checkedCount === checkboxes.length;
+    selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+}
+
+function toggleAll() {
+    const selectAll = document.getElementById('selectAllCheckbox').checked;
+    document.querySelectorAll('.tool-checkbox').forEach(checkbox => {
+        checkbox.checked = selectAll;
+    });
+    updateSelection();
+}
+
+function selectAll() {
+    document.querySelectorAll('.tool-checkbox').forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    updateSelection();
+}
+
+function selectNone() {
+    document.querySelectorAll('.tool-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateSelection();
+}
+
+// Actions
+function editTool(toolName) {
+    window.open(`/edit/${toolName}`, '_blank');
+}
+
+function editMetadata(toolName) {
+    window.open(`/edit_metadata/${toolName}`, '_blank');
+}
+
+function bulkEdit() {
+    if (selectedTools.size === 0) return;
+    
+    const toolNames = Array.from(selectedTools);
+    const params = new URLSearchParams();
+    toolNames.forEach(name => params.append('tools', name));
+    
+    window.open(`/bulk_edit?${params}`, '_blank');
+}
+
+function bulkEditMetadata() {
+    if (selectedTools.size === 0) return;
+    
+    const toolNames = Array.from(selectedTools);
+    const params = new URLSearchParams();
+    toolNames.forEach(name => params.append('tools', name));
+    
+    window.open(`/bulk_edit_metadata?${params}`, '_blank');
+}
+
+function refreshData() {
+    selectedTools.clear();
+    loadTools();
+}
+
+function clearFilters() {
+    document.getElementById('categoryFilter').value = '';
+    document.getElementById('tagFilter').value = '';
+    document.getElementById('searchFilter').value = '';
+    applyFiltersAndSort();
+}
+
+function updateToolsCount(count) {
+    document.getElementById('toolsCount').textContent = count;
+}
+</script>
+{% endblock %} 

@@ -1,0 +1,364 @@
+{% extends "base.html" %}
+
+{% block title %}{{ tool.name }} bearbeiten - Engineering Tag Manager{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-8 mx-auto">
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="bi bi-pencil-square"></i> Tool bearbeiten: {{ tool.name }}</h4>
+                </div>
+                <div class="card-body">
+                    <!-- Tool-Info -->
+                    <div class="row mb-4">
+                        <div class="col-sm-3"><strong>Name:</strong></div>
+                        <div class="col-sm-9">{{ tool.name }}</div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-sm-3"><strong>Datei:</strong></div>
+                        <div class="col-sm-9">
+                            <code>{{ tool.relative_path }}</code>
+                        </div>
+                    </div>
+                    <div class="row mb-4">
+                        <div class="col-sm-3"><strong>Kategorie:</strong></div>
+                        <div class="col-sm-9">
+                            <span class="badge bg-info">{{ tool.category }}</span>
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- Tag-Editor -->
+                    <form id="editForm">
+                        <input type="hidden" id="toolName" value="{{ tool.name }}">
+                        
+                        <div class="mb-4">
+                            <label class="form-label"><strong>Aktuelle Tags:</strong></label>
+                            <div class="tag-input" id="currentTags">
+                                {% for tag in tool.current_tags %}
+                                <span class="badge bg-secondary tag-badge me-1 mb-1" data-tag="{{ tag }}">
+                                    {{ tag }}
+                                    <button type="button" class="btn-close btn-close-white ms-1" 
+                                            onclick="removeTag('{{ tag }}')" style="font-size: 0.6em;"></button>
+                                </span>
+                                {% endfor %}
+                                {% if not tool.current_tags %}
+                                <span class="text-muted" id="noTagsMessage">Keine Tags zugewiesen</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <label class="form-label"><strong>Verfügbare Tags:</strong></label>
+                            <div class="mb-2">
+                                <input type="text" class="form-control" id="tagSearch" 
+                                       placeholder="Tag suchen oder neuen Tag eingeben...">
+                            </div>
+                            <div class="tag-suggestions" id="tagSuggestions">
+                                {% for tag, description in available_tags.items() %}
+                                <div class="tag-suggestion p-2 border-bottom {% if tag in tool.current_tags %}d-none{% endif %}" 
+                                     data-tag="{{ tag }}" onclick="addTag('{{ tag }}')">
+                                    <strong>{{ tag }}</strong>
+                                    <br><small class="text-muted">{{ description }}</small>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="createBackup" checked>
+                                <label class="form-check-label" for="createBackup">
+                                    Backup erstellen vor Änderungen
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" onclick="window.close()">
+                                <i class="bi bi-x-circle"></i> Abbrechen
+                            </button>
+                            <div>
+                                <button type="button" class="btn btn-outline-info me-2" id="previewBtn" onclick="previewChanges()">
+                                    <i class="bi bi-eye"></i> Vorschau
+                                </button>
+                                <button type="submit" class="btn btn-success" id="saveBtn">
+                                    <i class="bi bi-check-circle"></i> Speichern
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Preview Modal -->
+            <div class="modal fade" id="previewModal" tabindex="-1">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Änderungen Vorschau</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body" id="previewContent">
+                            <!-- Vorschau-Inhalt -->
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                            <button type="button" class="btn btn-success" onclick="saveChanges()">
+                                <i class="bi bi-check-circle"></i> Jetzt speichern
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentTags = new Set({{ tool.current_tags | tojson }});
+let originalTags = new Set({{ tool.current_tags | tojson }});
+let availableTags = {{ available_tags | tojson }};
+
+// Event Listeners
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('editForm').addEventListener('submit', handleSubmit);
+    document.getElementById('tagSearch').addEventListener('input', filterTagSuggestions);
+    document.getElementById('tagSearch').addEventListener('keydown', handleTagInput);
+});
+
+function handleSubmit(e) {
+    e.preventDefault();
+    saveChanges();
+}
+
+function handleTagInput(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const tagText = e.target.value.trim();
+        if (tagText) {
+            addTag(tagText);
+            e.target.value = '';
+        }
+    }
+}
+
+function addTag(tag) {
+    if (currentTags.has(tag)) {
+        showAlert(`Tag "${tag}" ist bereits zugewiesen`, 'warning');
+        return;
+    }
+    
+    currentTags.add(tag);
+    updateTagDisplay();
+    updateTagSuggestions();
+    document.getElementById('tagSearch').value = '';
+    
+    // Füge zu verfügbaren Tags hinzu wenn neu
+    if (!(tag in availableTags)) {
+        availableTags[tag] = '⚠️ Neuer Tag - Beschreibung wird benötigt';
+        addTagSuggestion(tag);
+    }
+}
+
+function removeTag(tag) {
+    currentTags.delete(tag);
+    updateTagDisplay();
+    updateTagSuggestions();
+}
+
+function updateTagDisplay() {
+    const container = document.getElementById('currentTags');
+    const noTagsMessage = document.getElementById('noTagsMessage');
+    
+    // Entferne alle Tag-Badges
+    container.querySelectorAll('.tag-badge').forEach(badge => badge.remove());
+    
+    if (currentTags.size === 0) {
+        if (!noTagsMessage) {
+            const span = document.createElement('span');
+            span.className = 'text-muted';
+            span.id = 'noTagsMessage';
+            span.textContent = 'Keine Tags zugewiesen';
+            container.appendChild(span);
+        }
+    } else {
+        if (noTagsMessage) {
+            noTagsMessage.remove();
+        }
+        
+        // Füge aktuelle Tags hinzu
+        Array.from(currentTags).sort().forEach(tag => {
+            const badge = document.createElement('span');
+            badge.className = 'badge bg-secondary tag-badge me-1 mb-1';
+            badge.setAttribute('data-tag', tag);
+            badge.innerHTML = `
+                ${tag}
+                <button type="button" class="btn-close btn-close-white ms-1" 
+                        onclick="removeTag('${tag}')" style="font-size: 0.6em;"></button>
+            `;
+            container.appendChild(badge);
+        });
+    }
+}
+
+function updateTagSuggestions() {
+    document.querySelectorAll('.tag-suggestion').forEach(suggestion => {
+        const tag = suggestion.getAttribute('data-tag');
+        suggestion.classList.toggle('d-none', currentTags.has(tag));
+    });
+}
+
+function filterTagSuggestions() {
+    const searchText = document.getElementById('tagSearch').value.toLowerCase();
+    
+    document.querySelectorAll('.tag-suggestion').forEach(suggestion => {
+        const tag = suggestion.getAttribute('data-tag');
+        const isAssigned = currentTags.has(tag);
+        const matchesSearch = tag.toLowerCase().includes(searchText) || 
+                            availableTags[tag].toLowerCase().includes(searchText);
+        
+        suggestion.classList.toggle('d-none', isAssigned || (searchText && !matchesSearch));
+    });
+}
+
+function addTagSuggestion(tag) {
+    const container = document.getElementById('tagSuggestions');
+    const suggestion = document.createElement('div');
+    suggestion.className = 'tag-suggestion p-2 border-bottom d-none';
+    suggestion.setAttribute('data-tag', tag);
+    suggestion.onclick = () => addTag(tag);
+    suggestion.innerHTML = `
+        <strong>${tag}</strong>
+        <br><small class="text-muted">${availableTags[tag]}</small>
+    `;
+    container.appendChild(suggestion);
+}
+
+function previewChanges() {
+    const oldTags = Array.from(originalTags).sort();
+    const newTags = Array.from(currentTags).sort();
+    
+    let previewContent = '<div class="row">';
+    
+    // Alt vs Neu
+    previewContent += '<div class="col-6">';
+    previewContent += '<h6>Aktuelle Tags:</h6>';
+    if (oldTags.length === 0) {
+        previewContent += '<span class="text-muted">Keine Tags</span>';
+    } else {
+        oldTags.forEach(tag => {
+            previewContent += `<span class="badge bg-secondary me-1">${tag}</span>`;
+        });
+    }
+    previewContent += '</div>';
+    
+    previewContent += '<div class="col-6">';
+    previewContent += '<h6>Neue Tags:</h6>';
+    if (newTags.length === 0) {
+        previewContent += '<span class="text-muted">Keine Tags</span>';
+    } else {
+        newTags.forEach(tag => {
+            const isNew = !originalTags.has(tag);
+            const bgClass = isNew ? 'bg-success' : 'bg-secondary';
+            previewContent += `<span class="badge ${bgClass} me-1">${tag}</span>`;
+        });
+    }
+    previewContent += '</div>';
+    previewContent += '</div>';
+    
+    // Änderungen
+    const added = newTags.filter(tag => !originalTags.has(tag));
+    const removed = oldTags.filter(tag => !currentTags.has(tag));
+    
+    if (added.length > 0 || removed.length > 0) {
+        previewContent += '<hr>';
+        previewContent += '<h6>Änderungen:</h6>';
+        
+        if (added.length > 0) {
+            previewContent += '<div class="mb-2">';
+            previewContent += '<strong class="text-success">Hinzugefügt:</strong> ';
+            added.forEach(tag => {
+                previewContent += `<span class="badge bg-success me-1">${tag}</span>`;
+            });
+            previewContent += '</div>';
+        }
+        
+        if (removed.length > 0) {
+            previewContent += '<div class="mb-2">';
+            previewContent += '<strong class="text-danger">Entfernt:</strong> ';
+            removed.forEach(tag => {
+                previewContent += `<span class="badge bg-danger me-1">${tag}</span>`;
+            });
+            previewContent += '</div>';
+        }
+    } else {
+        previewContent += '<hr><p class="text-muted">Keine Änderungen</p>';
+    }
+    
+    document.getElementById('previewContent').innerHTML = previewContent;
+    new bootstrap.Modal(document.getElementById('previewModal')).show();
+}
+
+function saveChanges() {
+    const toolName = document.getElementById('toolName').value;
+    const newTags = Array.from(currentTags);
+    const createBackup = document.getElementById('createBackup').checked;
+    
+    // Deaktiviere Buttons während dem Speichern
+    const saveBtn = document.getElementById('saveBtn');
+    const previewBtn = document.getElementById('previewBtn');
+    
+    saveBtn.disabled = true;
+    previewBtn.disabled = true;
+    saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Speichere...';
+    
+    fetch('/api/update_tool', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            tool_name: toolName,
+            tags: newTags,
+            create_backup: createBackup
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(data.message, 'success');
+            originalTags = new Set(newTags);
+            
+            // Schließe Modal falls offen
+            const modal = bootstrap.Modal.getInstance(document.getElementById('previewModal'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            // Optional: Fenster nach kurzer Zeit schließen
+            setTimeout(() => {
+                if (confirm('Tags erfolgreich gespeichert. Fenster schließen?')) {
+                    window.close();
+                }
+            }, 2000);
+        } else {
+            showAlert(data.error || 'Fehler beim Speichern', 'danger');
+        }
+    })
+    .catch(error => {
+        handleAjaxError({responseJSON: {error: error.message}});
+    })
+    .finally(() => {
+        saveBtn.disabled = false;
+        previewBtn.disabled = false;
+        saveBtn.innerHTML = '<i class="bi bi-check-circle"></i> Speichern';
+    });
+}
+</script>
+{% endblock %} 

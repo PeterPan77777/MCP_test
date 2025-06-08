@@ -1,218 +1,378 @@
 #!/usr/bin/env python3
 """
-Kegel-Volumen - Berechnet Volumen, Radius oder Höhe
+Kegel-Volumen - Berechnet Volumen, Radius oder Höhe eines Kegels
 
 Berechnet Kegel-Volumen mit automatischer Einheiten-Konvertierung.
 Alle Eingaben MÜSSEN mit Einheiten angegeben werden.
 
 Löst die Formel V = (1/3) × π × r² × h nach verschiedenen Variablen auf.
-Lösbare Variablen: volume, radius, height
+Lösbare Variablen: volumen, radius, hoehe
 
-Kegel: Rotationskörper mit kreisförmiger Grundfläche und Spitze
-Formel: V = (1/3) × π × r² × h (⅓ × π × Radius² × Höhe)
+⚠️ NAMENSKONVENTION: ALLE Parameter-Namen MÜSSEN DEUTSCH sein!
+Beispiele: durchmesser, druck, laenge, breite, hoehe, radius, flaeche, volumen, wanddicke
+
+Kegel: Spitze Pyramide mit kreisförmiger Grundfläche - V = (1/3) × π × r² × h
 """
 
-from typing import Dict, Optional
+# ================================================================================================
+# 🎯 TOOL-KONFIGURATION & PARAMETER-DEFINITIONEN 🎯
+# ================================================================================================
+
+# ===== 🔧 GRUNDKONFIGURATION =====
+TOOL_NAME = "kegel_volumen"
+TOOL_TAGS = ["elementar"]
+TOOL_SHORT_DESCRIPTION = "Kegel-Volumen - Berechnet Volumen, Radius oder Höhe"
+TOOL_VERSION = "1.0.0"
+HAS_SOLVING = "symbolic"  # Alle Berechnungen sind analytisch lösbar
+
+# ===== 📝 FUNKTIONSPARAMETER-DEFINITIONEN =====
+FUNCTION_PARAM_1_NAME = "volumen"
+FUNCTION_PARAM_1_DESC = "Volumen des Kegels mit Volumeneinheit (z.B. '261.8 cm³', '0.0002618 m³', '261800 mm³') oder 'target' für Berechnung"
+FUNCTION_PARAM_1_EXAMPLE = "261.8 cm³"
+
+FUNCTION_PARAM_2_NAME = "radius"
+FUNCTION_PARAM_2_DESC = "Radius der Grundfläche mit Längeneinheit (z.B. '5 cm', '50 mm', '0.05 m') oder 'target' für Berechnung"
+FUNCTION_PARAM_2_EXAMPLE = "5 cm"
+
+FUNCTION_PARAM_3_NAME = "hoehe"
+FUNCTION_PARAM_3_DESC = "Höhe des Kegels mit Längeneinheit (z.B. '10 cm', '100 mm', '0.1 m') oder 'target' für Berechnung"
+FUNCTION_PARAM_3_EXAMPLE = "10 cm"
+
+# ===== 📊 METADATEN-STRUKTUR =====
+TOOL_DESCRIPTION = f"""Löst die Kegel-Volumen-Formel V = (1/3) × π × r² × h nach verschiedenen Variablen auf mit TARGET-System.
+
+WICHTIG: Alle Parameter sind PFLICHT - einer als 'target', die anderen mit Einheiten!
+Target-System: Geben Sie 'target' für den zu berechnenden Parameter an.
+
+BERECHNUNGSARTEN:
+{FUNCTION_PARAM_1_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel V = (1/3)×π×r²×h)
+{FUNCTION_PARAM_2_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel r = √((3V)/(π×h)))
+{FUNCTION_PARAM_3_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel h = (3V)/(π×r²))
+
+Kegel-Formel: V = (1/3) × π × r² × h
+
+Anwendungsbereich: Geometrie, Silos, Trichter, Architektur (Kuppeln)
+Einschränkungen: Alle Werte müssen positiv sein
+Genauigkeit: Exakte analytische Lösung"""
+
+# Parameter-Definitionen für Metadaten
+PARAMETER_VOLUMEN = {
+    "type": "string",
+    "description": FUNCTION_PARAM_1_DESC,
+    "example": FUNCTION_PARAM_1_EXAMPLE
+}
+
+PARAMETER_RADIUS = {
+    "type": "string", 
+    "description": FUNCTION_PARAM_2_DESC,
+    "example": FUNCTION_PARAM_2_EXAMPLE
+}
+
+PARAMETER_HOEHE = {
+    "type": "string",
+    "description": FUNCTION_PARAM_3_DESC,
+    "example": FUNCTION_PARAM_3_EXAMPLE
+}
+
+# Output-Definition
+OUTPUT_RESULT = {
+    "type": "Quantity",
+    "description": "Berechnungsergebnis mit Einheit",
+    "unit": "abhängig vom Parameter"
+}
+
+# Beispiele
+TOOL_EXAMPLES = [
+    {
+        "title": "Berechne Volumen bei gegebenem Radius und Höhe",
+        "input": {f"{FUNCTION_PARAM_1_NAME}": "target", f"{FUNCTION_PARAM_2_NAME}": FUNCTION_PARAM_2_EXAMPLE, f"{FUNCTION_PARAM_3_NAME}": FUNCTION_PARAM_3_EXAMPLE},
+        "output": "Volumen in optimierter Einheit"
+    },
+    {
+        "title": "Berechne Radius bei gegebenem Volumen und Höhe", 
+        "input": {f"{FUNCTION_PARAM_1_NAME}": FUNCTION_PARAM_1_EXAMPLE, f"{FUNCTION_PARAM_2_NAME}": "target", f"{FUNCTION_PARAM_3_NAME}": FUNCTION_PARAM_3_EXAMPLE},
+        "output": "Radius in optimierter Einheit"
+    },
+    {
+        "title": "Berechne Höhe bei gegebenem Volumen und Radius",
+        "input": {f"{FUNCTION_PARAM_1_NAME}": FUNCTION_PARAM_1_EXAMPLE, f"{FUNCTION_PARAM_2_NAME}": FUNCTION_PARAM_2_EXAMPLE, f"{FUNCTION_PARAM_3_NAME}": "target"},
+        "output": "Höhe in optimierter Einheit"
+    }
+]
+
+# Mathematische Grundlagen
+MATHEMATICAL_FOUNDATION = "Kegel-Volumen: V = (1/3) × π × r² × h, wobei r der Grundradius und h die Höhe ist"
+
+# Annahmen
+TOOL_ASSUMPTIONS = [
+    "Kegel mit kreisförmiger Grundfläche",
+    "Alle Eingabewerte sind positiv",
+    "Spitze liegt senkrecht über dem Mittelpunkt der Grundfläche"
+]
+
+# Einschränkungen
+TOOL_LIMITATIONS = [
+    "Nur für positive Werte gültig",
+    "Nur für gerade Kreiskegel",
+    "Nicht für abgestumpfte Kegel oder elliptische Kegel"
+]
+
+# Referenz-Einheiten
+REFERENCE_UNITS = {
+    f"{FUNCTION_PARAM_1_NAME}": "m³",
+    f"{FUNCTION_PARAM_2_NAME}": "m",
+    f"{FUNCTION_PARAM_3_NAME}": "m"
+}
+
+# ================================================================================================
+# 🔧 IMPORTS & DEPENDENCIES 🔧
+# ================================================================================================
+
+from typing import Dict, Optional, Annotated
 import sys
 import os
 import math
 
 # Import des Einheiten-Utilities
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-from tools.units_utils import validate_inputs_have_units, optimize_output_unit, UnitsError, ureg
+from engineering_mcp.units_utils import validate_inputs_have_units, optimize_output_unit, UnitsError, ureg
+
+# ================================================================================================
+# 🎯 TOOL FUNCTIONS 🎯
+# ================================================================================================
 
 def solve_kegel(
-    volume: Optional[str] = None,
-    radius: Optional[str] = None,
-    height: Optional[str] = None
+    volumen: Annotated[str, f"{FUNCTION_PARAM_1_DESC}"],
+    radius: Annotated[str, f"{FUNCTION_PARAM_2_DESC}"],
+    hoehe: Annotated[str, f"{FUNCTION_PARAM_3_DESC}"]
 ) -> Dict:
+    """
+    📊 ANALYTICAL SOLUTION
+    
+    Löst die Kegel-Volumen-Formel V = (1/3) × π × r² × h nach verschiedenen Variablen auf.
+    
+    Args:
+        volumen: Volumen mit Einheit oder 'target'
+        radius: Radius mit Einheit oder 'target' 
+        hoehe: Höhe mit Einheit oder 'target'
+    
+    Returns:
+        Dict mit Berechnungsergebnis und Metadaten
+    """
     try:
-        # Zähle gegebene Parameter
-        given_params = [p for p in [volume, radius, height] if p is not None]
+        # Identifiziere target Parameter
+        target_params = []
+        given_params = []
+        
+        params_info = {
+            f'{FUNCTION_PARAM_1_NAME}': volumen,
+            f'{FUNCTION_PARAM_2_NAME}': radius,
+            f'{FUNCTION_PARAM_3_NAME}': hoehe
+        }
+        
+        for param_name, param_value in params_info.items():
+            if param_value.lower().strip() == "target":
+                target_params.append(param_name)
+            else:
+                given_params.append(param_name)
+        
+        # Validierung: Genau ein target Parameter
+        if len(target_params) != 1:
+            return {
+                "error": f"Genau ein Parameter muss 'target' sein (gefunden: {len(target_params)})",
+                "target_params": target_params,
+                "example": f"solve_kegel({FUNCTION_PARAM_1_NAME}='target', {FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}', {FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}')",
+                "hinweis": "Geben Sie genau einen Parameter als 'target' an"
+            }
         
         if len(given_params) != 2:
             return {
-                "error": "Genau 2 Parameter müssen gegeben sein (einer wird berechnet)",
-                "given_count": len(given_params),
-                "example": "Beispiel: solve_kegel(radius='4 cm', height='6 cm')"
+                "error": f"Genau 2 Parameter müssen Werte mit Einheiten haben (gefunden: {len(given_params)})",
+                "given_params": given_params,
+                "example": f"solve_kegel({FUNCTION_PARAM_1_NAME}='target', {FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}', {FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}')"
             }
+        
+        target_param = target_params[0]
+        
+        # Erstelle kwargs für Validierung (nur gegebene Parameter)
+        validation_kwargs = {}
+        for param_name in given_params:
+            validation_kwargs[param_name] = params_info[param_name]
         
         # Validiere Einheiten und konvertiere zu SI
         try:
-            params = validate_inputs_have_units(
-                volume=volume, 
-                radius=radius, 
-                height=height
-            )
+            params = validate_inputs_have_units(**validation_kwargs)
         except UnitsError as e:
             return {
                 "error": "Einheiten-Fehler",
                 "message": str(e),
-                "hinweis": "Alle Parameter müssen mit Einheiten angegeben werden",
+                "hinweis": "Alle Nicht-Target-Parameter müssen mit Einheiten angegeben werden",
                 "beispiele": [
-                    "volume='100.53 cm³'",
-                    "radius='4 cm'", 
-                    "height='6 cm'"
+                    f"{FUNCTION_PARAM_1_NAME}='{FUNCTION_PARAM_1_EXAMPLE}'",
+                    f"{FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}'",
+                    f"{FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}'"
                 ]
             }
         
-        # Berechnung basierend auf gegebenen Parametern
-        if volume is None:
+        # Berechnung basierend auf target Parameter
+        if target_param == FUNCTION_PARAM_1_NAME:
             # Berechne Volumen: V = (1/3) × π × r² × h
-            r_si = params['radius']['si_value']    # in Metern
-            h_si = params['height']['si_value']    # in Metern
+            r_si = params[FUNCTION_PARAM_2_NAME]['si_value']  # in Metern
+            h_si = params[FUNCTION_PARAM_3_NAME]['si_value']  # in Metern
             
             if r_si <= 0 or h_si <= 0:
                 return {"error": "Alle Werte müssen positiv sein"}
             
-            volume_si = (1/3) * math.pi * r_si**2 * h_si  # in m³
+            v_si = (1/3) * math.pi * r_si**2 * h_si  # in m³
             
-            # Optimiere Ausgabe-Einheit (nutze Radius als Referenz)
-            volume_quantity = volume_si * ureg.meter**3
-            volume_optimized = optimize_output_unit(volume_quantity, params['radius']['original_unit'])
+            # Optimiere Ausgabe-Einheit
+            ref_unit = params[FUNCTION_PARAM_2_NAME]['original_unit'] if r_si < h_si else params[FUNCTION_PARAM_3_NAME]['original_unit']
+            volume_quantity = v_si * ureg.meter**3
+            volume_optimized = optimize_output_unit(volume_quantity, ref_unit)
             
             return {
+                "target_parameter": FUNCTION_PARAM_1_NAME,
                 "gegebene_werte": {
-                    "radius": radius,
-                    "hoehe": height
+                    FUNCTION_PARAM_2_NAME: radius,
+                    FUNCTION_PARAM_3_NAME: hoehe
                 },
                 "ergebnis": {
-                    "volumen": f"{volume_optimized.magnitude:.6g} {volume_optimized.units}"
+                    FUNCTION_PARAM_1_NAME: f"{volume_optimized.magnitude:.6g} {volume_optimized.units}"
                 },
                 "formel": "V = (1/3) × π × r² × h",
+                "berechnungsart": "📊 ANALYTICAL SOLUTION",
                 "si_werte": {
-                    "volumen_si": f"{volume_si:.6g} m³",
-                    "radius_si": f"{r_si:.6g} m",
-                    "hoehe_si": f"{h_si:.6g} m"
-                }
-            }
-            
-        elif radius is None:
-            # Berechne Radius: r = √((3 × V) / (π × h))
-            V_si = params['volume']['si_value']    # in m³
-            h_si = params['height']['si_value']    # in Metern
-            
-            if V_si <= 0 or h_si <= 0:
-                return {"error": "Alle Werte müssen positiv sein"}
-            
-            r_squared = (3 * V_si) / (math.pi * h_si)
-            if r_squared < 0:
-                return {"error": "Ungültige Kombination von Volumen und Höhe"}
-            
-            r_si = math.sqrt(r_squared)  # in Metern
-            
-            # Optimiere Ausgabe-Einheit
-            r_quantity = r_si * ureg.meter
-            r_optimized = optimize_output_unit(r_quantity, params['height']['original_unit'])
-            
-            return {
-                "gegebene_werte": {
-                    "volumen": volume,
-                    "hoehe": height
-                },
-                "ergebnis": {
-                    "radius": f"{r_optimized.magnitude:.6g} {r_optimized.units}"
-                },
-                "formel": "r = √((3 × V) / (π × h))",
-                "si_werte": {
-                    "radius_si": f"{r_si:.6g} m",
-                    "volumen_si": f"{V_si:.6g} m³",
-                    "hoehe_si": f"{h_si:.6g} m"
-                }
-            }
-            
-        elif height is None:
-            # Berechne Höhe: h = (3 × V) / (π × r²)
-            V_si = params['volume']['si_value']    # in m³
-            r_si = params['radius']['si_value']    # in Metern
-            
-            if V_si <= 0 or r_si <= 0:
-                return {"error": "Alle Werte müssen positiv sein"}
-            
-            h_si = (3 * V_si) / (math.pi * r_si**2)  # in Metern
-            
-            # Optimiere Ausgabe-Einheit
-            h_quantity = h_si * ureg.meter
-            h_optimized = optimize_output_unit(h_quantity, params['radius']['original_unit'])
-            
-            return {
-                "gegebene_werte": {
-                    "volumen": volume,
-                    "radius": radius
-                },
-                "ergebnis": {
-                    "hoehe": f"{h_optimized.magnitude:.6g} {h_optimized.units}"
-                },
-                "formel": "h = (3 × V) / (π × r²)",
-                "si_werte": {
-                    "hoehe_si": f"{h_si:.6g} m",
-                    "volumen_si": f"{V_si:.6g} m³",
-                    "radius_si": f"{r_si:.6g} m"
+                    f"{FUNCTION_PARAM_1_NAME}_si": f"{v_si:.6g} m³",
+                    f"{FUNCTION_PARAM_2_NAME}_si": f"{r_si:.6g} m",
+                    f"{FUNCTION_PARAM_3_NAME}_si": f"{h_si:.6g} m"
                 }
             }
         
+        elif target_param == FUNCTION_PARAM_2_NAME:
+            # Berechne Radius: r = √((3 × V) / (π × h))
+            v_si = params[FUNCTION_PARAM_1_NAME]['si_value']  # in m³
+            h_si = params[FUNCTION_PARAM_3_NAME]['si_value']  # in Metern
+            
+            if v_si <= 0 or h_si <= 0:
+                return {"error": "Alle Werte müssen positiv sein"}
+            
+            r_si = math.sqrt((3 * v_si) / (math.pi * h_si))  # in Metern
+            
+            # Optimiere Ausgabe-Einheit
+            radius_quantity = r_si * ureg.meter
+            radius_optimized = optimize_output_unit(radius_quantity, params[FUNCTION_PARAM_3_NAME]['original_unit'])
+            
+            return {
+                "target_parameter": FUNCTION_PARAM_2_NAME,
+                "gegebene_werte": {
+                    FUNCTION_PARAM_1_NAME: volumen,
+                    FUNCTION_PARAM_3_NAME: hoehe
+                },
+                "ergebnis": {
+                    FUNCTION_PARAM_2_NAME: f"{radius_optimized.magnitude:.6g} {radius_optimized.units}"
+                },
+                "formel": "r = √((3 × V) / (π × h))",
+                "berechnungsart": "📊 ANALYTICAL SOLUTION",
+                "si_werte": {
+                    f"{FUNCTION_PARAM_1_NAME}_si": f"{v_si:.6g} m³",
+                    f"{FUNCTION_PARAM_2_NAME}_si": f"{r_si:.6g} m",
+                    f"{FUNCTION_PARAM_3_NAME}_si": f"{h_si:.6g} m"
+                }
+            }
+        
+        elif target_param == FUNCTION_PARAM_3_NAME:
+            # Berechne Höhe: h = (3 × V) / (π × r²)
+            v_si = params[FUNCTION_PARAM_1_NAME]['si_value']  # in m³
+            r_si = params[FUNCTION_PARAM_2_NAME]['si_value']  # in Metern
+            
+            if v_si <= 0 or r_si <= 0:
+                return {"error": "Alle Werte müssen positiv sein"}
+            
+            h_si = (3 * v_si) / (math.pi * r_si**2)  # in Metern
+            
+            # Optimiere Ausgabe-Einheit
+            height_quantity = h_si * ureg.meter
+            height_optimized = optimize_output_unit(height_quantity, params[FUNCTION_PARAM_2_NAME]['original_unit'])
+            
+            return {
+                "target_parameter": FUNCTION_PARAM_3_NAME,
+                "gegebene_werte": {
+                    FUNCTION_PARAM_1_NAME: volumen,
+                    FUNCTION_PARAM_2_NAME: radius
+                },
+                "ergebnis": {
+                    FUNCTION_PARAM_3_NAME: f"{height_optimized.magnitude:.6g} {height_optimized.units}"
+                },
+                "formel": "h = (3 × V) / (π × r²)",
+                "berechnungsart": "📊 ANALYTICAL SOLUTION",
+                "si_werte": {
+                    f"{FUNCTION_PARAM_1_NAME}_si": f"{v_si:.6g} m³",
+                    f"{FUNCTION_PARAM_2_NAME}_si": f"{r_si:.6g} m",
+                    f"{FUNCTION_PARAM_3_NAME}_si": f"{h_si:.6g} m"
+                }
+            }
+        
+        else:
+            return {"error": f"Unbekannter target Parameter: {target_param}"}
+    
     except Exception as e:
         return {
-            "error": "Berechnungsfehler",
+            "error": "Unerwarteter Fehler in solve_kegel",
             "message": str(e),
-            "hinweis": "Überprüfen Sie die Eingabe-Parameter und Einheiten"
+            "funktion": "solve_kegel"
         }
 
-# Tool-Metadaten für Registry
-TOOL_METADATA = {
-    "name": "solve_kegel",
-    "short_description": "Kegel-Volumen - Berechnet Volumen, Radius oder Höhe",
-    "description": """Löst die Kegel-Formel V = (1/3) × π × r² × h nach verschiedenen Variablen auf. Lösbare Variablen: volume, radius, height
+# ================================================================================================
+# 🎯 METADATA FUNCTIONS 🎯
+# ================================================================================================
 
-WICHTIG: Alle Parameter MÜSSEN mit Einheiten angegeben werden!
-Format: "Wert Einheit" (z.B. "4 cm", "6 cm", "100.53 cm³")
-
-Grundformel: V = (1/3) × π × r² × h
-
-Parameter:
-- volume: Volumen des Kegels mit Volumeneinheit (z.B. "100.53 cm³", "0.0001 m³")
-- radius: Grundradius mit Längeneinheit (z.B. "4 cm", "40 mm") 
-- height: Höhe des Kegels mit Längeneinheit (z.B. "6 cm", "60 mm")
-
-Anwendungsbereich: Geometrie, Maschinenbau (konische Teile), Trichter-Berechnungen
-Einschränkungen: Alle Werte müssen positiv sein""",
-    "tags": ["elementar", "Volumen"],
-    "function": solve_kegel,
-    "examples": [
-        {
-            "description": "Berechne Volumen bei gegebenem Radius und Höhe",
-            "call": 'solve_kegel(radius="4 cm", height="6 cm")',
-            "result": "Volumen in optimierter Einheit"
+def get_metadata():
+    """Generiert die Metadaten für das Tool"""
+    return {
+        "name": TOOL_NAME,
+        "version": TOOL_VERSION,
+        "tags": TOOL_TAGS,
+        "short_description": TOOL_SHORT_DESCRIPTION,
+        "description": TOOL_DESCRIPTION,
+        "parameters": {
+            FUNCTION_PARAM_1_NAME: PARAMETER_VOLUMEN,
+            FUNCTION_PARAM_2_NAME: PARAMETER_RADIUS,
+            FUNCTION_PARAM_3_NAME: PARAMETER_HOEHE
         },
-        {
-            "description": "Berechne Radius bei gegebenem Volumen und Höhe", 
-            "call": 'solve_kegel(volume="100.53 cm³", height="6 cm")',
-            "result": "Radius in optimierter Einheit"
-        },
-        {
-            "description": "Berechne Höhe bei gegebenem Volumen und Radius",
-            "call": 'solve_kegel(volume="100.53 cm³", radius="4 cm")',
-            "result": "Höhe in optimierter Einheit"
-        }
-    ]
-}
+        "output": OUTPUT_RESULT,
+        "examples": TOOL_EXAMPLES,
+        "mathematical_foundation": MATHEMATICAL_FOUNDATION,
+        "assumptions": TOOL_ASSUMPTIONS,
+        "limitations": TOOL_LIMITATIONS,
+        "has_solving": HAS_SOLVING,
+        "reference_units": REFERENCE_UNITS
+    }
+
+# Legacy-Wrapper für Abwärtskompatibilität
+def calculate(volume: str, radius: str, height: str) -> Dict:
+    """Legacy-Wrapper-Funktion für Abwärtskompatibilität"""
+    return solve_kegel(
+        volumen=volume,
+        radius=radius,
+        hoehe=height
+    )
 
 if __name__ == "__main__":
     # Test-Beispiele
     print("=== Kegel-Tool Tests ===")
     
     # Test 1: Volumen berechnen
-    result1 = solve_kegel(radius="4 cm", height="6 cm")
+    result1 = solve_kegel(radius="5 cm", hoehe="10 cm")
     print(f"Test 1 - Volumen: {result1}")
     
     # Test 2: Radius berechnen
-    result2 = solve_kegel(volume="100.53 cm³", height="6 cm")
+    result2 = solve_kegel(volumen="261.8 cm³", hoehe="10 cm")
     print(f"Test 2 - Radius: {result2}")
     
     # Test 3: Höhe berechnen
-    result3 = solve_kegel(volume="100.53 cm³", radius="4 cm")
+    result3 = solve_kegel(volumen="261.8 cm³", radius="5 cm")
     print(f"Test 3 - Höhe: {result3}")
     
     # Test 4: Fehler - keine Einheit
-    result4 = solve_kegel(radius="4", height="6 cm")
+    result4 = solve_kegel(radius="5", hoehe="10 cm")
     print(f"Test 4 - Keine Einheit: {result4}") 

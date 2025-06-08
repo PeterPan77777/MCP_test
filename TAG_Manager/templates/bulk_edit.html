@@ -1,0 +1,394 @@
+{% extends "base.html" %}
+
+{% block title %}Bulk-Bearbeitung - Engineering Tag Manager{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-md-10 mx-auto">
+            <div class="card">
+                <div class="card-header">
+                    <h4><i class="bi bi-check2-square"></i> Bulk-Bearbeitung: {{ tools|length }} Tools</h4>
+                </div>
+                <div class="card-body">
+                    <!-- Ausgewählte Tools -->
+                    <div class="mb-4">
+                        <h5>Ausgewählte Tools:</h5>
+                        <div class="row">
+                            {% for tool_name, tool_data in tools.items() %}
+                            <div class="col-md-6 col-lg-4 mb-2">
+                                <div class="card card-sm">
+                                    <div class="card-body py-2">
+                                        <h6 class="card-title mb-1">{{ tool_name }}</h6>
+                                        <small class="text-muted">{{ tool_data.category }}</small>
+                                        <div class="mt-1">
+                                            {% for tag in tool_data.current_tags %}
+                                            <span class="badge bg-secondary tag-badge">{{ tag }}</span>
+                                            {% endfor %}
+                                            {% if not tool_data.current_tags %}
+                                            <span class="text-muted">Keine Tags</span>
+                                            {% endif %}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <hr>
+                    
+                    <!-- Gemeinsame Tags -->
+                    {% if common_tags %}
+                    <div class="mb-4">
+                        <h5>Gemeinsame Tags:</h5>
+                        <div class="p-3 bg-light rounded">
+                            {% for tag in common_tags %}
+                            <span class="badge bg-primary tag-badge">{{ tag }}</span>
+                            {% endfor %}
+                        </div>
+                        <small class="text-muted">Diese Tags sind in allen ausgewählten Tools vorhanden.</small>
+                    </div>
+                    {% endif %}
+                    
+                    <!-- Bulk-Operations Form -->
+                    <form id="bulkEditForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label"><strong>Operation:</strong></label>
+                                    <select class="form-select" id="operation" onchange="updateOperationDescription()">
+                                        <option value="add">Tags hinzufügen</option>
+                                        <option value="remove">Tags entfernen</option>
+                                        <option value="replace">Tags ersetzen</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="alert alert-info" id="operationDescription">
+                                    <i class="bi bi-info-circle"></i> 
+                                    <span id="operationText">Fügt die ausgewählten Tags zu allen Tools hinzu, ohne bestehende Tags zu entfernen.</span>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label"><strong>Tags auswählen:</strong></label>
+                                    <input type="text" class="form-control mb-2" id="tagSearch" 
+                                           placeholder="Tag suchen...">
+                                    <div class="tag-selections border p-2 rounded" style="max-height: 200px; overflow-y: auto;">
+                                        {% for tag, description in available_tags.items() %}
+                                        <div class="form-check tag-option" data-tag="{{ tag }}">
+                                            <input class="form-check-input" type="checkbox" value="{{ tag }}" id="tag_{{ tag }}">
+                                            <label class="form-check-label" for="tag_{{ tag }}">
+                                                <strong>{{ tag }}</strong>
+                                                <br><small class="text-muted">{{ description }}</small>
+                                            </label>
+                                        </div>
+                                        {% endfor %}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label"><strong>Ausgewählte Tags für Operation:</strong></label>
+                            <div class="selected-tags-display p-2 border rounded" id="selectedTagsDisplay">
+                                <span class="text-muted">Keine Tags ausgewählt</span>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="createBackup" checked>
+                                <label class="form-check-label" for="createBackup">
+                                    Backups erstellen vor Änderungen
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="d-flex justify-content-between">
+                            <button type="button" class="btn btn-secondary" onclick="window.close()">
+                                <i class="bi bi-x-circle"></i> Abbrechen
+                            </button>
+                            <div>
+                                <button type="button" class="btn btn-outline-info me-2" onclick="previewChanges()">
+                                    <i class="bi bi-eye"></i> Vorschau
+                                </button>
+                                <button type="submit" class="btn btn-success" id="saveBtn">
+                                    <i class="bi bi-check-circle"></i> Änderungen anwenden
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            
+            <!-- Preview Modal -->
+            <div class="modal fade" id="previewModal" tabindex="-1" data-bs-backdrop="static">
+                <div class="modal-dialog modal-lg">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Bulk-Änderungen Vorschau</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body" id="previewContent" style="max-height: 500px; overflow-y: auto;">
+                            <!-- Vorschau-Inhalt -->
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                            <button type="button" class="btn btn-success" onclick="applyChanges()">
+                                <i class="bi bi-check-circle"></i> Jetzt anwenden
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Progress Modal -->
+            <div class="modal fade" id="progressModal" tabindex="-1" data-bs-backdrop="static" data-bs-keyboard="false">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title">Bulk-Änderungen werden angewendet...</h5>
+                        </div>
+                        <div class="modal-body">
+                            <div class="progress mb-3">
+                                <div class="progress-bar" id="progressBar" role="progressbar" style="width: 0%"></div>
+                            </div>
+                            <div id="progressText">Bereite Änderungen vor...</div>
+                            <div id="progressDetails" class="mt-3 small text-muted"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let selectedTags = new Set();
+let toolsData = {{ tools | tojson }};
+let availableTags = {{ available_tags | tojson }};
+
+// Event Listeners
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('bulkEditForm').addEventListener('submit', handleSubmit);
+    document.getElementById('tagSearch').addEventListener('input', filterTags);
+    
+    // Tag selection listeners
+    document.querySelectorAll('.form-check-input[type="checkbox"]').forEach(checkbox => {
+        checkbox.addEventListener('change', updateSelectedTags);
+    });
+    
+    updateOperationDescription();
+});
+
+function handleSubmit(e) {
+    e.preventDefault();
+    previewChanges();
+}
+
+function updateOperationDescription() {
+    const operation = document.getElementById('operation').value;
+    const descriptions = {
+        'add': 'Fügt die ausgewählten Tags zu allen Tools hinzu, ohne bestehende Tags zu entfernen.',
+        'remove': 'Entfernt die ausgewählten Tags von allen Tools. Andere Tags bleiben erhalten.',
+        'replace': 'Ersetzt ALLE bestehenden Tags durch die ausgewählten Tags. Achtung: Alle anderen Tags gehen verloren!'
+    };
+    
+    const alertClasses = {
+        'add': 'alert-info',
+        'remove': 'alert-warning', 
+        'replace': 'alert-danger'
+    };
+    
+    const alertDiv = document.getElementById('operationDescription');
+    const textSpan = document.getElementById('operationText');
+    
+    // Entferne alle Alert-Klassen
+    alertDiv.className = 'alert ' + alertClasses[operation];
+    textSpan.textContent = descriptions[operation];
+}
+
+function filterTags() {
+    const searchText = document.getElementById('tagSearch').value.toLowerCase();
+    
+    document.querySelectorAll('.tag-option').forEach(option => {
+        const tag = option.getAttribute('data-tag');
+        const label = option.querySelector('label').textContent.toLowerCase();
+        const matches = tag.toLowerCase().includes(searchText) || label.includes(searchText);
+        
+        option.style.display = matches ? 'block' : 'none';
+    });
+}
+
+function updateSelectedTags() {
+    selectedTags.clear();
+    
+    document.querySelectorAll('.form-check-input[type="checkbox"]:checked').forEach(checkbox => {
+        if (checkbox.id !== 'createBackup') {
+            selectedTags.add(checkbox.value);
+        }
+    });
+    
+    updateSelectedTagsDisplay();
+}
+
+function updateSelectedTagsDisplay() {
+    const display = document.getElementById('selectedTagsDisplay');
+    
+    if (selectedTags.size === 0) {
+        display.innerHTML = '<span class="text-muted">Keine Tags ausgewählt</span>';
+    } else {
+        const tagsArray = Array.from(selectedTags);
+        display.innerHTML = tagsArray.map(tag => 
+            `<span class="badge bg-primary tag-badge">${tag}</span>`
+        ).join('');
+    }
+}
+
+function previewChanges() {
+    if (selectedTags.size === 0) {
+        showAlert('Bitte wählen Sie mindestens einen Tag aus', 'warning');
+        return;
+    }
+    
+    const operation = document.getElementById('operation').value;
+    const tagsArray = Array.from(selectedTags);
+    
+    let previewContent = `<h6>Operation: <span class="badge bg-primary">${getOperationName(operation)}</span></h6>`;
+    previewContent += `<h6>Tags: ${tagsArray.map(tag => `<span class="badge bg-secondary">${tag}</span>`).join('')}</h6>`;
+    previewContent += '<hr>';
+    
+    let changesCount = 0;
+    
+    previewContent += '<div class="table-responsive">';
+    previewContent += '<table class="table table-sm">';
+    previewContent += '<thead><tr><th>Tool</th><th>Aktuelle Tags</th><th>Neue Tags</th><th>Änderung</th></tr></thead>';
+    previewContent += '<tbody>';
+    
+    Object.entries(toolsData).forEach(([toolName, toolData]) => {
+        const currentTags = new Set(toolData.current_tags);
+        let newTags;
+        
+        if (operation === 'add') {
+            newTags = new Set([...currentTags, ...tagsArray]);
+        } else if (operation === 'remove') {
+            newTags = new Set([...currentTags].filter(tag => !tagsArray.includes(tag)));
+        } else if (operation === 'replace') {
+            newTags = new Set(tagsArray);
+        }
+        
+        const hasChanges = !areSetsEqual(currentTags, newTags);
+        if (hasChanges) changesCount++;
+        
+        const rowClass = hasChanges ? '' : 'table-secondary';
+        
+        previewContent += `<tr class="${rowClass}">`;
+        previewContent += `<td><strong>${toolName}</strong></td>`;
+        previewContent += `<td>${Array.from(currentTags).map(tag => `<span class="badge bg-secondary tag-badge">${tag}</span>`).join('') || '<span class="text-muted">Keine</span>'}</td>`;
+        previewContent += `<td>${Array.from(newTags).map(tag => `<span class="badge bg-secondary tag-badge">${tag}</span>`).join('') || '<span class="text-muted">Keine</span>'}</td>`;
+        previewContent += `<td>${hasChanges ? '<i class="bi bi-check-circle text-success"></i>' : '<span class="text-muted">Keine Änderung</span>'}</td>`;
+        previewContent += '</tr>';
+    });
+    
+    previewContent += '</tbody></table></div>';
+    previewContent += `<div class="alert alert-info mt-3"><strong>${changesCount}</strong> von ${Object.keys(toolsData).length} Tools werden geändert.</div>`;
+    
+    document.getElementById('previewContent').innerHTML = previewContent;
+    new bootstrap.Modal(document.getElementById('previewModal')).show();
+}
+
+function applyChanges() {
+    const operation = document.getElementById('operation').value;
+    const tagsArray = Array.from(selectedTags);
+    const createBackup = document.getElementById('createBackup').checked;
+    const toolNames = Object.keys(toolsData);
+    
+    // Schließe Preview Modal
+    bootstrap.Modal.getInstance(document.getElementById('previewModal')).hide();
+    
+    // Zeige Progress Modal
+    const progressModal = new bootstrap.Modal(document.getElementById('progressModal'));
+    progressModal.show();
+    
+    // Führe Bulk-Update aus
+    fetch('/api/bulk_update', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            tool_names: toolNames,
+            operation: operation,
+            tags: tagsArray,
+            create_backup: createBackup
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        progressModal.hide();
+        
+        if (data.success) {
+            showBulkResults(data.results);
+        } else {
+            showAlert(data.error || 'Fehler beim Anwenden der Änderungen', 'danger');
+        }
+    })
+    .catch(error => {
+        progressModal.hide();
+        handleAjaxError({responseJSON: {error: error.message}});
+    });
+}
+
+function showBulkResults(results) {
+    const successful = results.filter(r => r.success).length;
+    const total = results.length;
+    
+    let message = `${successful} von ${total} Tools erfolgreich aktualisiert.`;
+    
+    if (successful === total) {
+        showAlert(message, 'success');
+        
+        // Optional: Fenster nach kurzer Zeit schließen
+        setTimeout(() => {
+            if (confirm('Alle Änderungen erfolgreich angewendet. Fenster schließen?')) {
+                window.close();
+            }
+        }, 3000);
+    } else {
+        showAlert(message + ' Es gab Fehler bei einigen Tools.', 'warning');
+        
+        // Zeige Details der Fehler
+        const errors = results.filter(r => !r.success);
+        console.error('Bulk-Update Fehler:', errors);
+    }
+}
+
+function getOperationName(operation) {
+    const names = {
+        'add': 'Tags hinzufügen',
+        'remove': 'Tags entfernen', 
+        'replace': 'Tags ersetzen'
+    };
+    return names[operation] || operation;
+}
+
+function areSetsEqual(set1, set2) {
+    if (set1.size !== set2.size) return false;
+    for (let item of set1) {
+        if (!set2.has(item)) return false;
+    }
+    return true;
+}
+
+// Progress Updates (wenn nötig)
+function updateProgress(percent, text, details = '') {
+    document.getElementById('progressBar').style.width = percent + '%';
+    document.getElementById('progressText').textContent = text;
+    document.getElementById('progressDetails').textContent = details;
+}
+</script>
+{% endblock %} 

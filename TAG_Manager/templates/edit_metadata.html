@@ -1,0 +1,445 @@
+{% extends "base.html" %}
+
+{% block title %}Metadaten bearbeiten: {{ tool.name }} - Engineering Tag Manager{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-3">
+    <div class="row">
+        <div class="col-md-12">
+            <nav aria-label="breadcrumb">
+                <ol class="breadcrumb">
+                    <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Übersicht</a></li>
+                    <li class="breadcrumb-item active" aria-current="page">Metadaten: {{ tool.name }}</li>
+                </ol>
+            </nav>
+            
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3><i class="bi bi-gear"></i> Metadaten bearbeiten: {{ tool.name }}</h3>
+                <div>
+                    <button class="btn btn-outline-secondary" onclick="window.close()">
+                        <i class="bi bi-x-circle"></i> Schließen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="row">
+        <!-- Tool-Info -->
+        <div class="col-md-4">
+            <div class="card info-card mb-4">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-info-circle"></i> Tool-Informationen</h5>
+                </div>
+                <div class="card-body">
+                    <p><strong>Name:</strong> {{ tool.name }}</p>
+                    <p><strong>Kategorie:</strong> <span class="badge bg-info">{{ tool.category }}</span></p>
+                    <p><strong>Pfad:</strong><br><small class="text-muted">{{ tool.relative_path }}</small></p>
+                    <p><strong>Tags:</strong><br>
+                        {% for tag in tool.current_tags %}
+                            <span class="badge bg-secondary me-1">{{ tag }}</span>
+                        {% endfor %}
+                        {% if not tool.current_tags %}
+                            <span class="text-muted">Keine Tags</span>
+                        {% endif %}
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Aktuelle Metadaten anzeigen -->
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="bi bi-eye"></i> Aktuelle Metadaten</h6>
+                </div>
+                <div class="card-body">
+                    {% if tool.metadata %}
+                        <div id="currentMetadata">
+                            {% for key, value in tool.metadata.items() %}
+                                <div class="mb-2">
+                                    <strong>{{ key }}:</strong><br>
+                                    <small class="text-muted">{{ value }}</small>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <p class="text-muted">Keine Metadaten gefunden</p>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        
+        <!-- Metadaten-Editor -->
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="bi bi-pencil-square"></i> Metadaten bearbeiten</h5>
+                </div>
+                <div class="card-body">
+                    <form id="metadataForm">
+                        <div class="row">
+                            <!-- Häufige Metadaten-Felder -->
+                            <div class="col-md-6">
+                                <h6 class="text-primary">Standard-Metadaten</h6>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Tool Description:</label>
+                                    <textarea class="form-control" name="tool_description" rows="3" 
+                                            placeholder="Beschreibung des Tools">{{ tool.metadata.get('tool_description', '') }}</textarea>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Tool Category:</label>
+                                    <input type="text" class="form-control" name="tool_category" 
+                                           value="{{ tool.metadata.get('tool_category', '') }}" 
+                                           placeholder="z.B. geometry, schrauben">
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Has Solving:</label>
+                                    <select class="form-select" name="has_solving">
+                                        <option value="">-- Auswählen --</option>
+                                        <option value="true" {% if tool.metadata.get('has_solving') == 'true' %}selected{% endif %}>true</option>
+                                        <option value="false" {% if tool.metadata.get('has_solving') == 'false' %}selected{% endif %}>false</option>
+                                    </select>
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Norm Foundation:</label>
+                                    <input type="text" class="form-control" name="norm_foundation" 
+                                           value="{{ tool.metadata.get('norm_foundation', '') }}" 
+                                           placeholder="z.B. DIN 912, ISO 4762">
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Knowledge Foundation:</label>
+                                    <input type="text" class="form-control" name="knowledge_foundation" 
+                                           value="{{ tool.metadata.get('knowledge_foundation', '') }}" 
+                                           placeholder="z.B. Mathematik, Physik">
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <h6 class="text-primary">Zusätzliche Metadaten</h6>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Version:</label>
+                                    <input type="text" class="form-control" name="version" 
+                                           value="{{ tool.metadata.get('version', '') }}" 
+                                           placeholder="z.B. 1.0.0">
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Author:</label>
+                                    <input type="text" class="form-control" name="author" 
+                                           value="{{ tool.metadata.get('author', '') }}" 
+                                           placeholder="Autor des Tools">
+                                </div>
+                                
+                                <div class="mb-3">
+                                    <label class="form-label">Date:</label>
+                                    <input type="date" class="form-control" name="date" 
+                                           value="{{ tool.metadata.get('date', '') }}">
+                                </div>
+                                
+                                <!-- Dynamische Felder für andere Metadaten -->
+                                <div id="additionalFields">
+                                    {% for key, value in tool.metadata.items() %}
+                                        {% if key not in ['tool_description', 'tool_category', 'has_solving', 'norm_foundation', 'knowledge_foundation', 'version', 'author', 'date'] %}
+                                            <div class="mb-3 additional-field">
+                                                <label class="form-label">{{ key }}:</label>
+                                                <div class="input-group">
+                                                    <input type="text" class="form-control" name="{{ key }}" value="{{ value }}">
+                                                    <button class="btn btn-outline-danger" type="button" onclick="removeField(this)">
+                                                        <i class="bi bi-trash"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        {% endif %}
+                                    {% endfor %}
+                                </div>
+                                
+                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="addCustomField()">
+                                    <i class="bi bi-plus-circle"></i> Feld hinzufügen
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <hr>
+                        
+                        <!-- Aktions-Buttons -->
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="createBackup" checked>
+                                <label class="form-check-label" for="createBackup">
+                                    Backup erstellen
+                                </label>
+                            </div>
+                            
+                            <div>
+                                <button type="button" class="btn btn-outline-secondary me-2" onclick="resetForm()">
+                                    <i class="bi bi-arrow-clockwise"></i> Zurücksetzen
+                                </button>
+                                <button type="button" class="btn btn-outline-info me-2" onclick="previewChanges()">
+                                    <i class="bi bi-eye"></i> Vorschau
+                                </button>
+                                <button type="submit" class="btn btn-success">
+                                    <i class="bi bi-check-circle"></i> Metadaten speichern
+                                </button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Preview Modal -->
+<div class="modal fade" id="previewModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-eye"></i> Vorschau der Änderungen</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="previewContent">
+                    <!-- Wird per JavaScript gefüllt -->
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                <button type="button" class="btn btn-success" onclick="saveMetadata()">
+                    <i class="bi bi-check-circle"></i> Änderungen speichern
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const toolName = '{{ tool.name }}';
+const currentMetadata = {{ tool.metadata | tojson | safe }};
+
+// Form-Submit Handler
+document.getElementById('metadataForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    saveMetadata();
+});
+
+function saveMetadata() {
+    const formData = new FormData(document.getElementById('metadataForm'));
+    const metadata = {};
+    
+    // Sammle alle Metadaten
+    for (const [key, value] of formData.entries()) {
+        if (value.trim()) {  // Nur nicht-leere Werte
+            metadata[key] = value.trim();
+        }
+    }
+    
+    const createBackup = document.getElementById('createBackup').checked;
+    
+    showLoading();
+    
+    fetch('/api/update_metadata', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            tool_name: toolName,
+            metadata: metadata,
+            create_backup: createBackup
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideLoading();
+        
+        if (data.success) {
+            showSuccess('Metadaten erfolgreich aktualisiert!');
+            updateCurrentMetadataDisplay(data.new_metadata);
+            
+            // Modal schließen falls offen
+            const modal = bootstrap.Modal.getInstance(document.getElementById('previewModal'));
+            if (modal) {
+                modal.hide();
+            }
+        } else {
+            showError(data.error || 'Fehler beim Speichern der Metadaten');
+        }
+    })
+    .catch(error => {
+        hideLoading();
+        showError('Netzwerk-Fehler: ' + error.message);
+    });
+}
+
+function previewChanges() {
+    const formData = new FormData(document.getElementById('metadataForm'));
+    const newMetadata = {};
+    
+    for (const [key, value] of formData.entries()) {
+        if (value.trim()) {
+            newMetadata[key] = value.trim();
+        }
+    }
+    
+    // Erstelle Vergleichsansicht
+    let previewHtml = '<div class="row">';
+    
+    // Aktuelle Metadaten
+    previewHtml += '<div class="col-md-6">';
+    previewHtml += '<h6 class="text-muted">Aktuelle Metadaten:</h6>';
+    previewHtml += '<div class="bg-light p-3 rounded">';
+    if (Object.keys(currentMetadata).length > 0) {
+        for (const [key, value] of Object.entries(currentMetadata)) {
+            previewHtml += `<div class="mb-2"><strong>${key}:</strong> ${value}</div>`;
+        }
+    } else {
+        previewHtml += '<em class="text-muted">Keine Metadaten</em>';
+    }
+    previewHtml += '</div></div>';
+    
+    // Neue Metadaten
+    previewHtml += '<div class="col-md-6">';
+    previewHtml += '<h6 class="text-primary">Neue Metadaten:</h6>';
+    previewHtml += '<div class="bg-primary bg-opacity-10 p-3 rounded">';
+    if (Object.keys(newMetadata).length > 0) {
+        for (const [key, value] of Object.entries(newMetadata)) {
+            const isChanged = currentMetadata[key] !== value;
+            const changeClass = isChanged ? 'text-primary fw-bold' : '';
+            previewHtml += `<div class="mb-2 ${changeClass}"><strong>${key}:</strong> ${value}</div>`;
+        }
+    } else {
+        previewHtml += '<em class="text-muted">Keine Metadaten</em>';
+    }
+    previewHtml += '</div></div>';
+    
+    previewHtml += '</div>';
+    
+    document.getElementById('previewContent').innerHTML = previewHtml;
+    
+    const modal = new bootstrap.Modal(document.getElementById('previewModal'));
+    modal.show();
+}
+
+function addCustomField() {
+    const fieldName = prompt('Name des neuen Metadaten-Feldes:');
+    if (!fieldName) return;
+    
+    const container = document.getElementById('additionalFields');
+    const fieldDiv = document.createElement('div');
+    fieldDiv.className = 'mb-3 additional-field';
+    fieldDiv.innerHTML = `
+        <label class="form-label">${fieldName}:</label>
+        <div class="input-group">
+            <input type="text" class="form-control" name="${fieldName}" placeholder="Wert eingeben...">
+            <button class="btn btn-outline-danger" type="button" onclick="removeField(this)">
+                <i class="bi bi-trash"></i>
+            </button>
+        </div>
+    `;
+    
+    container.appendChild(fieldDiv);
+}
+
+function removeField(button) {
+    button.closest('.additional-field').remove();
+}
+
+function resetForm() {
+    if (confirm('Alle Änderungen zurücksetzen?')) {
+        document.getElementById('metadataForm').reset();
+        
+        // Aktuelle Metadaten wieder setzen
+        for (const [key, value] of Object.entries(currentMetadata)) {
+            const field = document.querySelector(`[name="${key}"]`);
+            if (field) {
+                field.value = value;
+            }
+        }
+    }
+}
+
+function updateCurrentMetadataDisplay(newMetadata) {
+    const container = document.getElementById('currentMetadata');
+    
+    if (Object.keys(newMetadata).length === 0) {
+        container.innerHTML = '<p class="text-muted">Keine Metadaten gefunden</p>';
+        return;
+    }
+    
+    let html = '';
+    for (const [key, value] of Object.entries(newMetadata)) {
+        html += `
+            <div class="mb-2">
+                <strong>${key}:</strong><br>
+                <small class="text-muted">${value}</small>
+            </div>
+        `;
+    }
+    
+    container.innerHTML = html;
+}
+
+// Utility Functions
+function showLoading() {
+    // Loading-Indikator anzeigen
+    const submitBtn = document.querySelector('button[type="submit"]');
+    submitBtn.disabled = true;
+    submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Speichert...';
+}
+
+function hideLoading() {
+    // Loading-Indikator verstecken
+    const submitBtn = document.querySelector('button[type="submit"]');
+    submitBtn.disabled = false;
+    submitBtn.innerHTML = '<i class="bi bi-check-circle"></i> Metadaten speichern';
+}
+
+function showSuccess(message) {
+    // Erstelle Toast für Erfolg
+    const toast = createToast('success', message);
+    document.body.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+}
+
+function showError(message) {
+    // Erstelle Toast für Fehler
+    const toast = createToast('danger', message);
+    document.body.appendChild(toast);
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+}
+
+function createToast(type, message) {
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-bg-${type} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    
+    // Positionierung
+    const toastContainer = document.querySelector('.toast-container') || createToastContainer();
+    toastContainer.appendChild(toast);
+    
+    return toast;
+}
+
+function createToastContainer() {
+    const container = document.createElement('div');
+    container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+    document.body.appendChild(container);
+    return container;
+}
+</script>
+{% endblock %} 

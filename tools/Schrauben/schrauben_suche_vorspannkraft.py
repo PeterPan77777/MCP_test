@@ -6,6 +6,28 @@ Ermöglicht gezielte Suche nach Schrauben mit spezifischen Vorspannkraft-Anforde
 für optimale Schraubenauswahl in der Konstruktion.
 """
 
+# 🎯 TOOL-KONFIGURATION
+FUNCTION_PARAM_MIN_VORSPANNKRAFT_NAME = "min_vorspannkraft"
+FUNCTION_PARAM_MIN_VORSPANNKRAFT_DESC = "Mindest-Vorspannkraft mit Einheit (z.B. '100 kN', '50000 N') - ERFORDERLICH"
+FUNCTION_PARAM_MIN_VORSPANNKRAFT_EXAMPLE = "100 kN"
+
+FUNCTION_PARAM_SCHRAUBENTYP_NAME = "schraubentyp"
+FUNCTION_PARAM_SCHRAUBENTYP_DESC = "Schraubentyp: 'Schaftschrauben', 'Dehnschrauben' oder 'beide'"
+FUNCTION_PARAM_SCHRAUBENTYP_EXAMPLE = "Schaftschrauben"
+
+FUNCTION_PARAM_FESTIGKEITSKLASSE_NAME = "festigkeitsklasse"
+FUNCTION_PARAM_FESTIGKEITSKLASSE_DESC = "Festigkeitsklasse: '8.8', '10.9', '12.9' oder 'alle'"
+FUNCTION_PARAM_FESTIGKEITSKLASSE_EXAMPLE = "10.9"
+
+FUNCTION_PARAM_REIBBEIWERT_NAME = "reibbeiwert"
+FUNCTION_PARAM_REIBBEIWERT_DESC = "Reibungskoeffizient: '0.08', '0.10', '0.12', '0.14', '0.16' oder 'alle'"
+FUNCTION_PARAM_REIBBEIWERT_EXAMPLE = "0.10"
+
+FUNCTION_PARAM_REIHE_FILTER_NAME = "reihe_filter"
+FUNCTION_PARAM_REIHE_FILTER_DESC = "Reihen-Filter: ['Reihe 1'] für nur Standardreihe oder None für alle Reihen"
+FUNCTION_PARAM_REIHE_FILTER_EXAMPLE = "['Reihe 1']"
+
+# 🔧 IMPORTS
 from typing import Dict, Optional, List
 import pandas as pd
 import numpy as np
@@ -15,6 +37,8 @@ import re
 
 # Import der gemeinsamen Funktionen
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# 🎯 TOOL FUNCTIONS
 
 def parse_kraft_einheit(kraft_str: str) -> float:
     """
@@ -33,7 +57,7 @@ def parse_kraft_einheit(kraft_str: str) -> float:
     match = re.match(pattern, kraft_str, re.IGNORECASE)
     
     if not match:
-        raise ValueError(f"Ungültiges Kraftformat: {kraft_str}. Verwenden Sie z.B. '100 kN' oder '50000 N'")
+        raise ValueError(f"Ungültiges Kraftformat: {kraft_str}. Verwenden Sie z.B. '{FUNCTION_PARAM_MIN_VORSPANNKRAFT_EXAMPLE}' oder '50000 N'")
     
     wert = float(match.group(1))
     einheit = match.group(2).upper()
@@ -188,9 +212,9 @@ def format_suchergebnis(df: pd.DataFrame, min_kraft_kn: float, suchparameter: Di
 
 **Suchkriterien:**
 - Mindest-Vorspannkraft: {min_kraft_kn:.1f} kN
-- Schraubentyp: {suchparameter.get('schraubentyp', 'alle')}
-- Festigkeitsklasse: {suchparameter.get('festigkeitsklasse', 'alle')}
-- Reibbeiwert: {suchparameter.get('reibbeiwert', 'alle')}
+- Schraubentyp: {suchparameter.get(FUNCTION_PARAM_SCHRAUBENTYP_NAME, 'alle')}
+- Festigkeitsklasse: {suchparameter.get(FUNCTION_PARAM_FESTIGKEITSKLASSE_NAME, 'alle')}
+- Reibbeiwert: {suchparameter.get(FUNCTION_PARAM_REIBBEIWERT_NAME, 'alle')}
 
 ❌ **Keine Gewinde gefunden**, die alle Kriterien erfüllen.
 
@@ -207,9 +231,9 @@ def format_suchergebnis(df: pd.DataFrame, min_kraft_kn: float, suchparameter: Di
 
 **Suchkriterien:**
 - Mindest-Vorspannkraft: {min_kraft_kn:.1f} kN
-- Schraubentyp: {suchparameter.get('schraubentyp', 'alle')}
-- Festigkeitsklasse: {suchparameter.get('festigkeitsklasse', 'alle')}
-- Reibbeiwert: {suchparameter.get('reibbeiwert', 'alle')}
+- Schraubentyp: {suchparameter.get(FUNCTION_PARAM_SCHRAUBENTYP_NAME, 'alle')}
+- Festigkeitsklasse: {suchparameter.get(FUNCTION_PARAM_FESTIGKEITSKLASSE_NAME, 'alle')}
+- Reibbeiwert: {suchparameter.get(FUNCTION_PARAM_REIBBEIWERT_NAME, 'alle')}
 
 ## 📊 OPTIMALE LÖSUNGEN (sortiert nach max. Vorspannkraft)
 
@@ -281,6 +305,8 @@ def schrauben_suche_vorspannkraft(
     reihe_filter: Optional[List[str]] = None
 ) -> Dict:
     """
+    📊 SEARCH AND ANALYSIS SOLUTION
+    
     Spezialisierte Suche nach Schrauben mit Mindest-Vorspannkraft.
     
     Args:
@@ -331,10 +357,10 @@ def schrauben_suche_vorspannkraft(
         
         # Sammle Suchparameter für Ausgabe
         suchparameter = {
-            "schraubentyp": schraubentyp,
-            "festigkeitsklasse": festigkeitsklasse,
-            "reibbeiwert": reibbeiwert,
-            "reihe_filter": reihe_filter
+            FUNCTION_PARAM_SCHRAUBENTYP_NAME: schraubentyp,
+            FUNCTION_PARAM_FESTIGKEITSKLASSE_NAME: festigkeitsklasse,
+            FUNCTION_PARAM_REIBBEIWERT_NAME: reibbeiwert,
+            FUNCTION_PARAM_REIHE_FILTER_NAME: reihe_filter
         }
         
         # Formatiere Ergebnis
@@ -357,21 +383,20 @@ def schrauben_suche_vorspannkraft(
             "hinweis": "Überprüfen Sie die Parameter und versuchen Sie es erneut"
         }
 
-# Tool-Metadaten für Registry
-TOOL_METADATA = {
-    "name": "schrauben_suche_vorspannkraft",
-    "short_description": "Schrauben-Vorspannkraft-Suche - Optimale Schraubenauswahl nach Kraftanforderungen",
-    "description": """Spezialisierte Suchfunktion für optimale Schraubenauswahl basierend auf Vorspannkraft-Anforderungen.
+def get_metadata():
+    """
+    Liefert Tool-Metadaten für Registry-Discovery.
+    
+    Returns:
+        Dict: Tool-Metadaten im neuen System-Format
+    """
+    return {
+        "tool_name": "schrauben_suche_vorspannkraft",
+        "short_description": "Schrauben-Vorspannkraft-Suche - Optimale Schraubenauswahl nach Kraftanforderungen",
+        "description": f"""Spezialisierte Suchfunktion für optimale Schraubenauswahl basierend auf Vorspannkraft-Anforderungen.
 
 Findet alle Gewinde, die eine Mindest-Vorspannkraft erreichen und sortiert sie nach Leistung.
 Berücksichtigt automatisch das Reihen-System (bevorzugt Reihe 1) und gibt Optimierungsempfehlungen.
-
-Parameter:
-- min_vorspannkraft: Kraft mit Einheit z.B. "100 kN", "50000 N" (erforderlich)
-- schraubentyp: "Schaftschrauben", "Dehnschrauben", "beide" (Standard: "Schaftschrauben")
-- festigkeitsklasse: "8.8", "10.9", "12.9", "alle" (Standard: "alle")
-- reibbeiwert: "0.08" bis "0.16", "alle" (Standard: "alle")
-- reihe_filter: Liste von Reihen z.B. ["Reihe 1"] oder None für alle
 
 Ausgabe-Features:
 - Sortiert nach maximaler Vorspannkraft
@@ -383,36 +408,77 @@ Ausgabe-Features:
 Anwendung: Konstruktionsoptimierung, Schraubenauswahl, Festigkeitsanalyse
 
 Normen: DIN 13-6 (Reihen), VDI 2230 (Vorspannkraft), ISO 262 (Geometrie)""",
-    "tags": ["DIN 13", "VDI 2230"],
-    "function": schrauben_suche_vorspannkraft,
-    "examples": [
-        {
-            "description": "Finde Schrauben mit mindestens 200 kN Vorspannkraft",
-            "call": 'schrauben_suche_vorspannkraft(min_vorspannkraft="200 kN")',
-            "result": "Sortierte Liste aller geeigneten Gewinde mit Optimierungsempfehlungen"
-        },
-        {
-            "description": "Hochfeste Schrauben mit spezifischer Schmierung",
-            "call": 'schrauben_suche_vorspannkraft(min_vorspannkraft="150 kN", festigkeitsklasse="12.9", reibbeiwert="0.08")',
-            "result": "Optimierte Auswahl für beste Schmierung und höchste Festigkeit"
-        },
-        {
-            "description": "Nur Reihe 1-Gewinde für Standard-Anwendungen",
-            "call": 'schrauben_suche_vorspannkraft(min_vorspannkraft="100 kN", reihe_filter=["Reihe 1"])',
-            "result": "Ausschließlich empfohlene Reihe 1-Gewinde"
-        }
-    ]
-}
+        "tags": ["DIN 13", "VDI 2230"],
 
+        "has_solving": "none",
+        "parameters": {
+            FUNCTION_PARAM_MIN_VORSPANNKRAFT_NAME: {
+                "type": "string",
+                "description": FUNCTION_PARAM_MIN_VORSPANNKRAFT_DESC,
+                "required": True
+            },
+            FUNCTION_PARAM_SCHRAUBENTYP_NAME: {
+                "type": "string",
+                "description": FUNCTION_PARAM_SCHRAUBENTYP_DESC,
+                "default": FUNCTION_PARAM_SCHRAUBENTYP_EXAMPLE
+            },
+            FUNCTION_PARAM_FESTIGKEITSKLASSE_NAME: {
+                "type": "string",
+                "description": FUNCTION_PARAM_FESTIGKEITSKLASSE_DESC,
+                "default": "alle"
+            },
+            FUNCTION_PARAM_REIBBEIWERT_NAME: {
+                "type": "string",
+                "description": FUNCTION_PARAM_REIBBEIWERT_DESC,
+                "default": "alle"
+            },
+            FUNCTION_PARAM_REIHE_FILTER_NAME: {
+                "type": "array",
+                "description": FUNCTION_PARAM_REIHE_FILTER_DESC,
+                "required": False
+            }
+        },
+        "examples": [
+            {
+                "description": "Finde Schrauben mit mindestens 200 kN Vorspannkraft",
+                "parameters": {FUNCTION_PARAM_MIN_VORSPANNKRAFT_NAME: "200 kN"},
+                "result": "Sortierte Liste aller geeigneten Gewinde mit Optimierungsempfehlungen"
+            },
+            {
+                "description": "Hochfeste Schrauben mit spezifischer Schmierung",
+                "parameters": {FUNCTION_PARAM_MIN_VORSPANNKRAFT_NAME: "150 kN", FUNCTION_PARAM_FESTIGKEITSKLASSE_NAME: "12.9", FUNCTION_PARAM_REIBBEIWERT_NAME: "0.08"},
+                "result": "Optimierte Auswahl für beste Schmierung und höchste Festigkeit"
+            },
+            {
+                "description": "Nur Reihe 1-Gewinde für Standard-Anwendungen",
+                "parameters": {FUNCTION_PARAM_MIN_VORSPANNKRAFT_NAME: FUNCTION_PARAM_MIN_VORSPANNKRAFT_EXAMPLE, FUNCTION_PARAM_REIHE_FILTER_NAME: ["Reihe 1"]},
+                "result": "Ausschließlich empfohlene Reihe 1-Gewinde"
+            }
+        ]
+    }
+
+def calculate(**kwargs) -> Dict:
+    """
+    Führt Vorspannkraft-Suche durch.
+    
+    Args:
+        **kwargs: Alle Parameter für die Vorspannkraft-Suche
+        
+    Returns:
+        Dict: Vorspannkraft-Suchergebnisse
+    """
+    return schrauben_suche_vorspannkraft(**kwargs)
+
+# 🎯 METADATA
 if __name__ == "__main__":
     # Test-Beispiele
-    print("=== Schrauben-Vorspannkraft-Suche Tests ===")
+    print("=== Schrauben-Vorspannkraft-Suche Template Tests ===")
     
     # Test 1: Einfache Suche
     result1 = schrauben_suche_vorspannkraft(min_vorspannkraft="100 kN")
     print("Test 1 - 100 kN Mindest-Vorspannkraft:")
     if 'suchergebnis' in result1:
-        print(result1['suchergebnis'][:500] + "...")
+        print(result1['suchergebnis'][:300] + "...")
         print(f"Treffer: {result1['anzahl_treffer']}")
     else:
         print(result1)
@@ -427,7 +493,7 @@ if __name__ == "__main__":
     )
     print("Test 2 - 200 kN, FK 10.9, μ=0.12:")
     if 'suchergebnis' in result2:
-        print(result2['suchergebnis'][:500] + "...")
+        print(result2['suchergebnis'][:300] + "...")
         print(f"Treffer: {result2['anzahl_treffer']}")
     else:
         print(result2) 

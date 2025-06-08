@@ -1,0 +1,371 @@
+#!/usr/bin/env python3
+"""
+Rechteck-Fläche - Berechnet Fläche, Länge oder Breite
+
+Berechnet Rechteckflächen mit automatischer Einheiten-Konvertierung.
+Alle Eingaben MÜSSEN mit Einheiten angegeben werden.
+
+Löst die Formel A = l × b nach verschiedenen Variablen auf.
+Lösbare Variablen: flaeche, laenge, breite
+
+⚠️ NAMENSKONVENTION: ALLE Parameter-Namen MÜSSEN DEUTSCH sein!
+Beispiele: durchmesser, druck, laenge, breite, hoehe, radius, flaeche, volumen, wanddicke
+
+Rechteck: Viereck mit vier rechten Winkeln - A = l × b (Länge × Breite)
+"""
+
+# ================================================================================================
+# 🎯 TOOL-KONFIGURATION & PARAMETER-DEFINITIONEN 🎯
+# ================================================================================================
+
+# ===== 🔧 GRUNDKONFIGURATION =====
+TOOL_NAME = "rechteck_flaeche"
+TOOL_TAGS = ["elementar", "Flaechen"]
+TOOL_SHORT_DESCRIPTION = "Rechteck-Fläche - Berechnet Fläche, Länge oder Breite"
+TOOL_VERSION = "1.0.0"
+HAS_SOLVING = "symbolic"  # Alle Berechnungen sind analytisch lösbar
+
+# ===== 📝 FUNKTIONSPARAMETER-DEFINITIONEN =====
+FUNCTION_PARAM_1_NAME = "flaeche"
+FUNCTION_PARAM_1_DESC = "Fläche des Rechtecks mit Flächeneinheit (z.B. '50 cm²', '0.005 m²', '5000 mm²') oder 'target' für Berechnung"
+FUNCTION_PARAM_1_EXAMPLE = "50 cm²"
+
+FUNCTION_PARAM_2_NAME = "laenge"
+FUNCTION_PARAM_2_DESC = "Länge des Rechtecks mit Längeneinheit (z.B. '10 cm', '100 mm', '0.1 m') oder 'target' für Berechnung"
+FUNCTION_PARAM_2_EXAMPLE = "10 cm"
+
+FUNCTION_PARAM_3_NAME = "breite"
+FUNCTION_PARAM_3_DESC = "Breite des Rechtecks mit Längeneinheit (z.B. '5 cm', '50 mm', '0.05 m') oder 'target' für Berechnung"
+FUNCTION_PARAM_3_EXAMPLE = "5 cm"
+
+# ===== 📊 METADATEN-STRUKTUR =====
+TOOL_DESCRIPTION = f"""Löst die Rechteckformel A = l × b nach verschiedenen Variablen auf mit TARGET-System.
+
+WICHTIG: Alle Parameter sind PFLICHT - einer als 'target', die anderen mit Einheiten!
+Target-System: Geben Sie 'target' für den zu berechnenden Parameter an.
+
+BERECHNUNGSARTEN:
+{FUNCTION_PARAM_1_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel A = l × b)
+{FUNCTION_PARAM_2_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel l = A / b)
+{FUNCTION_PARAM_3_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel b = A / l)
+
+Rechteckformel: A = l × b
+
+Anwendungsbereich: Flächenberechnungen, Geometrie, Grundstücksmessung
+Einschränkungen: Alle Werte müssen positiv sein
+Genauigkeit: Exakte analytische Lösung"""
+
+# Parameter-Definitionen für Metadaten
+PARAMETER_FLAECHE = {
+    "type": "string",
+    "description": FUNCTION_PARAM_1_DESC,
+    "example": FUNCTION_PARAM_1_EXAMPLE
+}
+
+PARAMETER_LAENGE = {
+    "type": "string", 
+    "description": FUNCTION_PARAM_2_DESC,
+    "example": FUNCTION_PARAM_2_EXAMPLE
+}
+
+PARAMETER_BREITE = {
+    "type": "string",
+    "description": FUNCTION_PARAM_3_DESC,
+    "example": FUNCTION_PARAM_3_EXAMPLE
+}
+
+# Output-Definition
+OUTPUT_RESULT = {
+    "type": "Quantity",
+    "description": "Berechnungsergebnis mit optimierter Einheit",
+    "unit": "abhängig vom Parameter"
+}
+
+# Beispiele (verwenden die definierten Parameter-Namen)
+TOOL_EXAMPLES = [
+    {
+        "title": f"Berechne {FUNCTION_PARAM_1_NAME} (analytisch) bei gegebenen {FUNCTION_PARAM_2_NAME} und {FUNCTION_PARAM_3_NAME}",
+        "input": {FUNCTION_PARAM_1_NAME: "target", FUNCTION_PARAM_2_NAME: FUNCTION_PARAM_2_EXAMPLE, FUNCTION_PARAM_3_NAME: FUNCTION_PARAM_3_EXAMPLE},
+        "output": f"{FUNCTION_PARAM_1_NAME} in optimierter Einheit mit geschlossener Formel"
+    },
+    {
+        "title": f"Berechne {FUNCTION_PARAM_2_NAME} (analytisch) bei gegebenen {FUNCTION_PARAM_1_NAME} und {FUNCTION_PARAM_3_NAME}", 
+        "input": {FUNCTION_PARAM_1_NAME: FUNCTION_PARAM_1_EXAMPLE, FUNCTION_PARAM_2_NAME: "target", FUNCTION_PARAM_3_NAME: FUNCTION_PARAM_3_EXAMPLE},
+        "output": f"{FUNCTION_PARAM_2_NAME} in optimierter Einheit mit geschlossener Formel"
+    },
+    {
+        "title": f"Berechne {FUNCTION_PARAM_3_NAME} (analytisch) bei gegebenen {FUNCTION_PARAM_1_NAME} und {FUNCTION_PARAM_2_NAME}",
+        "input": {FUNCTION_PARAM_1_NAME: FUNCTION_PARAM_1_EXAMPLE, FUNCTION_PARAM_2_NAME: FUNCTION_PARAM_2_EXAMPLE, FUNCTION_PARAM_3_NAME: "target"},
+        "output": f"{FUNCTION_PARAM_3_NAME} in optimierter Einheit mit geschlossener Formel"
+    }
+]
+
+# Annahmen
+TOOL_ASSUMPTIONS = [
+    "Rechteck mit zwei bekannten Seitenlängen",
+    "Alle Eingabewerte sind positiv",
+    "Winkel sind alle 90 Grad"
+]
+
+# Einschränkungen  
+TOOL_LIMITATIONS = [
+    "Nur für positive Werte gültig",
+    "Nur für rechteckige Formen",
+    "Nicht für schräge Vierecke geeignet"
+]
+
+# Mathematische Grundlagen
+MATHEMATICAL_FOUNDATION = "Rechteckformel: A = l × b, wobei l die Länge und b die Breite ist"
+
+# Normengrundlage
+NORM_FOUNDATION = ""
+
+# ===== AUTOMATISCH BERECHNET =====
+PARAMETER_COUNT = len([name for name in globals() if name.startswith('PARAMETER_')])
+
+# ================================================================================================
+# 🔧 IMPORTS & DEPENDENCIES 🔧
+# ================================================================================================
+
+from typing import Dict, Annotated
+import sys
+import os
+
+# Import des Einheiten-Utilities
+sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+from engineering_mcp.units_utils import validate_inputs_have_units, optimize_output_unit, UnitsError, ureg
+
+# ================================================================================================
+# 🎯 TOOL FUNCTIONS 🎯
+# ================================================================================================
+
+def solve_rechteck(
+    # ⚠️ Hier die konfigurierten Parameter-Namen und -Beschreibungen verwenden:
+    flaeche: Annotated[str, FUNCTION_PARAM_1_DESC],  
+    laenge: Annotated[str, FUNCTION_PARAM_2_DESC],
+    breite: Annotated[str, FUNCTION_PARAM_3_DESC]
+) -> Dict:
+    """
+    Löst die Rechteckformel A = l × b nach verschiedenen Variablen auf.
+    
+    Verwendet die oben definierten Parameter-Konfigurationen für konsistente 
+    Beschreibungen und Beispiele.
+    """
+    try:
+        # Identifiziere target Parameter
+        target_params = []
+        given_params = []
+        
+        params_info = {
+            'var1': flaeche,
+            'var2': laenge, 
+            'var3': breite
+        }
+        
+        for param_name, param_value in params_info.items():
+            if param_value.lower().strip() == "target":
+                target_params.append(param_name)
+            else:
+                given_params.append(param_name)
+        
+        # Validierung: Genau ein target Parameter
+        if len(target_params) != 1:
+            return {
+                "error": f"Genau ein Parameter muss 'target' sein (gefunden: {len(target_params)})",
+                "target_params": target_params,
+                "example": f"solve_rechteck({FUNCTION_PARAM_1_NAME}='target', {FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}', {FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}')",
+                "hinweis": "Geben Sie genau einen Parameter als 'target' an"
+            }
+        
+        if len(given_params) != 2:
+            return {
+                "error": f"Genau 2 Parameter müssen Werte mit Einheiten haben (gefunden: {len(given_params)})",
+                "given_params": given_params,
+                "example": f"solve_rechteck({FUNCTION_PARAM_1_NAME}='target', {FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}', {FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}')"
+            }
+        
+        target_param = target_params[0]
+        
+        # Erstelle kwargs für Validierung (nur gegebene Parameter)
+        validation_kwargs = {}
+        param_names = {
+            'var1': 'flaeche',
+            'var2': 'laenge', 
+            'var3': 'breite'
+        }
+        
+        for param_name in given_params:
+            real_param_name = param_names[param_name]
+            validation_kwargs[real_param_name] = params_info[param_name]
+
+        # Validierung der Eingaben
+        try:
+            params = validate_inputs_have_units(**validation_kwargs)
+        except UnitsError as e:
+            return {
+                "error": "Einheiten-Fehler",
+                "message": str(e),
+                "hinweis": "Alle Nicht-Target-Parameter müssen mit Einheiten angegeben werden",
+                "beispiele": [
+                    f"{FUNCTION_PARAM_1_NAME}='{FUNCTION_PARAM_1_EXAMPLE}'",
+                    f"{FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}'", 
+                    f"{FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}'"
+                ]
+            }
+        
+        # Berechnung basierend auf target Parameter
+        if target_param == 'var1':  # flaeche
+            # Berechne Fläche: A = l × b
+            laenge_si = params['laenge']['si_value']
+            breite_si = params['breite']['si_value']
+            
+            if laenge_si <= 0 or breite_si <= 0:
+                return {"error": "Alle Werte müssen positiv sein"}
+            
+            flaeche_si = laenge_si * breite_si
+            
+            # Optimiere Ausgabe-Einheit
+            ref_unit = params['breite']['original_unit'] if breite_si < laenge_si else params['laenge']['original_unit']
+            flaeche_quantity = flaeche_si * ureg.meter**2
+            flaeche_optimized = optimize_output_unit(flaeche_quantity, ref_unit)
+            
+            return {
+                "📊 ANALYTICAL SOLUTION": "Geschlossene Formel",
+                "target_parameter": "flaeche",
+                "gegebene_werte": {
+                    "laenge": laenge,
+                    "breite": breite
+                },
+                "ergebnis": {
+                    "flaeche": f"{flaeche_optimized.magnitude:.6g} {flaeche_optimized.units}"
+                },
+                "formel": "A = l × b",
+                "si_werte": {
+                    "flaeche_si": f"{flaeche_si:.6g} m²",
+                    "laenge_si": f"{laenge_si:.6g} m",
+                    "breite_si": f"{breite_si:.6g} m"
+                }
+            }
+            
+        elif target_param == 'var2':  # laenge
+            # Berechne Länge: l = A / b
+            flaeche_si = params['flaeche']['si_value']
+            breite_si = params['breite']['si_value']
+            
+            if flaeche_si <= 0 or breite_si <= 0:
+                return {"error": "Alle Werte müssen positiv sein"}
+            
+            laenge_si = flaeche_si / breite_si
+            
+            # Optimiere Ausgabe-Einheit
+            ref_unit = params['breite']['original_unit']
+            laenge_quantity = laenge_si * ureg.meter
+            laenge_optimized = optimize_output_unit(laenge_quantity, ref_unit)
+            
+            return {
+                "📊 ANALYTICAL SOLUTION": "Geschlossene Formel",
+                "target_parameter": "laenge",
+                "gegebene_werte": {
+                    "flaeche": flaeche,
+                    "breite": breite
+                },
+                "ergebnis": {
+                    "laenge": f"{laenge_optimized.magnitude:.6g} {laenge_optimized.units}"
+                },
+                "formel": "l = A / b",
+                "si_werte": {
+                    "laenge_si": f"{laenge_si:.6g} m",
+                    "flaeche_si": f"{flaeche_si:.6g} m²",
+                    "breite_si": f"{breite_si:.6g} m"
+                }
+            }
+            
+        elif target_param == 'var3':  # breite
+            # Berechne Breite: b = A / l
+            flaeche_si = params['flaeche']['si_value']
+            laenge_si = params['laenge']['si_value']
+            
+            if flaeche_si <= 0 or laenge_si <= 0:
+                return {"error": "Alle Werte müssen positiv sein"}
+            
+            breite_si = flaeche_si / laenge_si
+            
+            # Optimiere Ausgabe-Einheit
+            ref_unit = params['laenge']['original_unit']
+            breite_quantity = breite_si * ureg.meter
+            breite_optimized = optimize_output_unit(breite_quantity, ref_unit)
+            
+            return {
+                "📊 ANALYTICAL SOLUTION": "Geschlossene Formel",
+                "target_parameter": "breite",
+                "gegebene_werte": {
+                    "flaeche": flaeche,
+                    "laenge": laenge
+                },
+                "ergebnis": {
+                    "breite": f"{breite_optimized.magnitude:.6g} {breite_optimized.units}"
+                },
+                "formel": "b = A / l",
+                "si_werte": {
+                    "breite_si": f"{breite_si:.6g} m",
+                    "flaeche_si": f"{flaeche_si:.6g} m²",
+                    "laenge_si": f"{laenge_si:.6g} m"
+                }
+            }
+        
+    except UnitsError as e:
+        return {"error": f"Einheiten-Fehler: {str(e)}"}
+    except Exception as e:
+        return {
+            "error": f"Fehler in solve_rechteck: {str(e)}",
+            "type": type(e).__name__
+        }
+
+# ================================================================================================
+# 🎯 METADATA FUNCTIONS 🎯
+# ================================================================================================
+
+def get_metadata():
+    """Gibt die Metadaten des Tools für Registry-Discovery zurück"""
+    return {
+        # ✅ Neue Registry-Struktur
+        "tool_name": TOOL_NAME,
+        "short_description": TOOL_SHORT_DESCRIPTION,  # ✅ Neu
+        "description": TOOL_DESCRIPTION,  # ✅ Neu
+        "tags": TOOL_TAGS,  # ✅ Neu: "tags" statt "tool_tags"
+        "has_solving": HAS_SOLVING,
+        
+        # ✅ KRITISCH: Parameters Dictionary für Registry-Discovery
+        "parameters": {
+            FUNCTION_PARAM_1_NAME: PARAMETER_FLAECHE,
+            FUNCTION_PARAM_2_NAME: PARAMETER_LAENGE,
+            FUNCTION_PARAM_3_NAME: PARAMETER_BREITE,
+        },
+        
+        # ✅ Beispiele im neuen Format
+        "examples": TOOL_EXAMPLES,
+        
+        # ✅ Vollständige Metadaten für erweiterte Nutzung
+        "tool_version": TOOL_VERSION,
+        "output_result": OUTPUT_RESULT,
+        "tool_assumptions": TOOL_ASSUMPTIONS,
+        "tool_limitations": TOOL_LIMITATIONS,
+        "mathematical_foundation": MATHEMATICAL_FOUNDATION,
+        "norm_foundation": NORM_FOUNDATION,
+        
+        # ✅ Backwards Compatibility (falls andere Teile das alte Format erwarten)
+        "tool_tags": TOOL_TAGS,
+        "tool_short_description": TOOL_SHORT_DESCRIPTION,
+        "parameter_count": len([name for name in globals() if name.startswith('PARAMETER_')]),
+        "tool_description": TOOL_DESCRIPTION,
+        "parameter_count": PARAMETER_COUNT,
+        "parameter_flaeche": PARAMETER_FLAECHE,
+        "parameter_laenge": PARAMETER_LAENGE,
+        "parameter_breite": PARAMETER_BREITE
+    }
+
+def calculate(flaeche: str, laenge: str, breite: str) -> Dict:
+    """Legacy-Funktion für Kompatibilität"""
+    return solve_rechteck(flaeche, laenge, breite)
+
+

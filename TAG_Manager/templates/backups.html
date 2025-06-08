@@ -1,0 +1,452 @@
+{% extends "base.html" %}
+
+{% block title %}Backups - Engineering Tag Manager{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4><i class="bi bi-archive"></i> Backup-Verwaltung</h4>
+                        <div>
+                            <button class="btn btn-outline-danger btn-sm" onclick="cleanupOldBackups()" id="cleanupBtn">
+                                <i class="bi bi-trash"></i> Alte Backups löschen
+                            </button>
+                            <button class="btn btn-outline-info btn-sm" onclick="refreshData()">
+                                <i class="bi bi-arrow-clockwise"></i> Aktualisieren
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    {% if backups %}
+                    <!-- Backup-Statistiken -->
+                    <div class="row mb-4">
+                        <div class="col-md-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h3 class="text-primary">{{ backups|length }}</h3>
+                                    <small>Backup-Dateien</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h3 class="text-info">{{ (backups | map(attribute='size') | sum / 1024) | round(1) }}</h3>
+                                    <small>KB Speicher</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h3 class="text-success">{{ backups | selectattr('created', 'greaterthan', (moment().subtract(days=1) if moment else '')) | list | length }}</h3>
+                                    <small>Letzte 24h</small>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="card text-center">
+                                <div class="card-body">
+                                    <h3 class="text-warning">{{ backups | selectattr('created', 'lessthan', (moment().subtract(days=7) if moment else '')) | list | length }}</h3>
+                                    <small>Älter als 7 Tage</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Filter und Sortierung -->
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="input-group">
+                                <span class="input-group-text"><i class="bi bi-search"></i></span>
+                                <input type="text" class="form-control" id="searchBackups" placeholder="Dateiname suchen...">
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="ageFilter">
+                                <option value="">Alle Backups</option>
+                                <option value="today">Heute</option>
+                                <option value="week">Letzte 7 Tage</option>
+                                <option value="month">Letzter Monat</option>
+                                <option value="old">Älter als 1 Monat</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <select class="form-select" id="sortBy">
+                                <option value="created_desc">Neueste zuerst</option>
+                                <option value="created_asc">Älteste zuerst</option>
+                                <option value="name">Nach Name</option>
+                                <option value="size">Nach Größe</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- Bulk-Aktionen -->
+                    <div class="mb-3">
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-outline-secondary btn-sm" onclick="selectAll()">
+                                <i class="bi bi-check-all"></i> Alle auswählen
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" onclick="selectNone()">
+                                <i class="bi bi-square"></i> Auswahl aufheben
+                            </button>
+                            <button class="btn btn-outline-danger btn-sm" onclick="deleteSelected()" id="deleteSelectedBtn" disabled>
+                                <i class="bi bi-trash"></i> Ausgewählte löschen (<span id="selectedCount">0</span>)
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Backups-Tabelle -->
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead class="table-dark">
+                                <tr>
+                                    <th width="30"><input type="checkbox" id="selectAllCheckbox" onchange="toggleAll()"></th>
+                                    <th>Datei</th>
+                                    <th>Erstellt</th>
+                                    <th>Größe</th>
+                                    <th>Original-Tool</th>
+                                    <th>Aktionen</th>
+                                </tr>
+                            </thead>
+                            <tbody id="backupsTableBody">
+                                {% for backup in backups %}
+                                <tr class="backup-row" data-name="{{ backup.name }}" data-created="{{ backup.created.isoformat() }}" data-size="{{ backup.size }}">
+                                    <td>
+                                        <input type="checkbox" class="backup-checkbox" value="{{ backup.name }}" onchange="updateSelection()">
+                                    </td>
+                                    <td>
+                                        <div>
+                                            <strong>{{ backup.name }}</strong>
+                                            <br><small class="text-muted font-monospace">{{ backup.name.split('_')[0] if '_' in backup.name else backup.name }}</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div>
+                                            {{ backup.created.strftime('%d.%m.%Y') }}
+                                            <br><small class="text-muted">{{ backup.created.strftime('%H:%M:%S') }}</small>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        {% if backup.size > 1024 %}
+                                            {{ (backup.size / 1024) | round(1) }} KB
+                                        {% else %}
+                                            {{ backup.size }} Bytes
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        {% set tool_name = backup.name.split('_')[0] if '_' in backup.name else 'unbekannt' %}
+                                        <span class="badge bg-info">{{ tool_name }}</span>
+                                    </td>
+                                    <td>
+                                        <div class="btn-group" role="group">
+                                            <button class="btn btn-outline-primary btn-sm" onclick="viewBackup('{{ backup.path }}')">
+                                                <i class="bi bi-eye"></i> Anzeigen
+                                            </button>
+                                            <button class="btn btn-outline-success btn-sm" onclick="downloadBackup('{{ backup.path }}', '{{ backup.name }}')">
+                                                <i class="bi bi-download"></i> Download
+                                            </button>
+                                            <button class="btn btn-outline-danger btn-sm" onclick="deleteBackup('{{ backup.name }}')">
+                                                <i class="bi bi-trash"></i> Löschen
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    {% else %}
+                    <!-- Keine Backups -->
+                    <div class="text-center py-5">
+                        <i class="bi bi-archive" style="font-size: 4rem; color: #dee2e6;"></i>
+                        <h5 class="mt-3 text-muted">Keine Backups vorhanden</h5>
+                        <p class="text-muted">Backups werden automatisch erstellt, wenn Sie Tools bearbeiten.</p>
+                        <a href="{{ url_for('index') }}" class="btn btn-primary">
+                            <i class="bi bi-tools"></i> Tools bearbeiten
+                        </a>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- View Backup Modal -->
+    <div class="modal fade" id="viewBackupModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="viewBackupTitle">Backup anzeigen</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <pre id="backupContent" class="bg-light p-3" style="max-height: 500px; overflow-y: auto;"></pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Schließen</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Confirm Delete Modal -->
+    <div class="modal fade" id="confirmDeleteModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Backup löschen bestätigen</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body" id="confirmDeleteContent">
+                    <!-- Bestätigungstext -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Abbrechen</button>
+                    <button type="button" class="btn btn-danger" id="confirmDeleteBtn">
+                        <i class="bi bi-trash"></i> Löschen
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let selectedBackups = new Set();
+
+// Event Listeners
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('searchBackups').addEventListener('input', filterBackups);
+    document.getElementById('ageFilter').addEventListener('change', filterBackups);
+    document.getElementById('sortBy').addEventListener('change', sortBackups);
+});
+
+function filterBackups() {
+    const searchText = document.getElementById('searchBackups').value.toLowerCase();
+    const ageFilter = document.getElementById('ageFilter').value;
+    
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    
+    document.querySelectorAll('.backup-row').forEach(row => {
+        const fileName = row.getAttribute('data-name').toLowerCase();
+        const created = new Date(row.getAttribute('data-created'));
+        
+        // Text-Filter
+        const matchesSearch = !searchText || fileName.includes(searchText);
+        
+        // Alters-Filter
+        let matchesAge = true;
+        if (ageFilter === 'today') {
+            matchesAge = created >= today;
+        } else if (ageFilter === 'week') {
+            matchesAge = created >= weekAgo;
+        } else if (ageFilter === 'month') {
+            matchesAge = created >= monthAgo;
+        } else if (ageFilter === 'old') {
+            matchesAge = created < monthAgo;
+        }
+        
+        row.style.display = (matchesSearch && matchesAge) ? '' : 'none';
+    });
+}
+
+function sortBackups() {
+    const sortBy = document.getElementById('sortBy').value;
+    const tbody = document.getElementById('backupsTableBody');
+    const rows = Array.from(tbody.querySelectorAll('.backup-row'));
+    
+    rows.sort((a, b) => {
+        if (sortBy === 'created_desc') {
+            return new Date(b.getAttribute('data-created')) - new Date(a.getAttribute('data-created'));
+        } else if (sortBy === 'created_asc') {
+            return new Date(a.getAttribute('data-created')) - new Date(b.getAttribute('data-created'));
+        } else if (sortBy === 'name') {
+            return a.getAttribute('data-name').localeCompare(b.getAttribute('data-name'));
+        } else if (sortBy === 'size') {
+            return parseInt(b.getAttribute('data-size')) - parseInt(a.getAttribute('data-size'));
+        }
+        return 0;
+    });
+    
+    // Entferne alle Zeilen und füge sie sortiert wieder hinzu
+    rows.forEach(row => tbody.removeChild(row));
+    rows.forEach(row => tbody.appendChild(row));
+}
+
+// Selection Management
+function updateSelection() {
+    selectedBackups.clear();
+    document.querySelectorAll('.backup-checkbox:checked').forEach(checkbox => {
+        selectedBackups.add(checkbox.value);
+    });
+    
+    updateBulkButton();
+    updateSelectAllCheckbox();
+}
+
+function updateBulkButton() {
+    const deleteBtn = document.getElementById('deleteSelectedBtn');
+    const count = selectedBackups.size;
+    
+    deleteBtn.disabled = count === 0;
+    document.getElementById('selectedCount').textContent = count;
+}
+
+function updateSelectAllCheckbox() {
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const checkboxes = document.querySelectorAll('.backup-checkbox');
+    const checkedCount = document.querySelectorAll('.backup-checkbox:checked').length;
+    
+    selectAllCheckbox.checked = checkedCount > 0 && checkedCount === checkboxes.length;
+    selectAllCheckbox.indeterminate = checkedCount > 0 && checkedCount < checkboxes.length;
+}
+
+function toggleAll() {
+    const selectAll = document.getElementById('selectAllCheckbox').checked;
+    document.querySelectorAll('.backup-checkbox').forEach(checkbox => {
+        checkbox.checked = selectAll;
+    });
+    updateSelection();
+}
+
+function selectAll() {
+    document.querySelectorAll('.backup-checkbox').forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    updateSelection();
+}
+
+function selectNone() {
+    document.querySelectorAll('.backup-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateSelection();
+}
+
+// Backup Actions
+function viewBackup(backupPath) {
+    document.getElementById('viewBackupTitle').textContent = `Backup: ${backupPath.split(/[/\\]/).pop()}`;
+    
+    // Simuliere Datei-Anzeige (in echter Implementierung würde hier ein API-Call stattfinden)
+    fetch(`/api/view_backup?path=${encodeURIComponent(backupPath)}`)
+        .then(response => response.text())
+        .then(content => {
+            document.getElementById('backupContent').textContent = content;
+            new bootstrap.Modal(document.getElementById('viewBackupModal')).show();
+        })
+        .catch(error => {
+            document.getElementById('backupContent').textContent = 'Fehler beim Laden der Backup-Datei: ' + error.message;
+            new bootstrap.Modal(document.getElementById('viewBackupModal')).show();
+        });
+}
+
+function downloadBackup(backupPath, fileName) {
+    // Erstelle Download-Link
+    const link = document.createElement('a');
+    link.href = `/api/download_backup?path=${encodeURIComponent(backupPath)}`;
+    link.download = fileName;
+    link.click();
+}
+
+function deleteBackup(fileName) {
+    document.getElementById('confirmDeleteContent').innerHTML = `
+        <p>Möchten Sie das folgende Backup wirklich löschen?</p>
+        <div class="alert alert-warning">
+            <strong>${fileName}</strong>
+        </div>
+        <p><strong>Diese Aktion kann nicht rückgängig gemacht werden!</strong></p>
+    `;
+    
+    document.getElementById('confirmDeleteBtn').onclick = () => {
+        executeDeleteBackup([fileName]);
+    };
+    
+    new bootstrap.Modal(document.getElementById('confirmDeleteModal')).show();
+}
+
+function deleteSelected() {
+    if (selectedBackups.size === 0) return;
+    
+    const fileNames = Array.from(selectedBackups);
+    document.getElementById('confirmDeleteContent').innerHTML = `
+        <p>Möchten Sie die folgenden <strong>${fileNames.length}</strong> Backups wirklich löschen?</p>
+        <div class="alert alert-warning">
+            ${fileNames.map(name => `<div>${name}</div>`).join('')}
+        </div>
+        <p><strong>Diese Aktion kann nicht rückgängig gemacht werden!</strong></p>
+    `;
+    
+    document.getElementById('confirmDeleteBtn').onclick = () => {
+        executeDeleteBackup(fileNames);
+    };
+    
+    new bootstrap.Modal(document.getElementById('confirmDeleteModal')).show();
+}
+
+function executeDeleteBackup(fileNames) {
+    // Simuliere API-Call zum Löschen
+    Promise.all(fileNames.map(fileName => 
+        fetch('/api/delete_backup', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({file_name: fileName})
+        })
+    ))
+    .then(responses => {
+        const successful = responses.filter(r => r.ok).length;
+        
+        if (successful === fileNames.length) {
+            showAlert(`${successful} Backup(s) erfolgreich gelöscht`, 'success');
+        } else {
+            showAlert(`${successful} von ${fileNames.length} Backups gelöscht`, 'warning');
+        }
+        
+        // Schließe Modal und aktualisiere
+        bootstrap.Modal.getInstance(document.getElementById('confirmDeleteModal')).hide();
+        setTimeout(() => window.location.reload(), 1000);
+    })
+    .catch(error => {
+        showAlert('Fehler beim Löschen der Backups: ' + error.message, 'danger');
+    });
+}
+
+function cleanupOldBackups() {
+    if (confirm('Möchten Sie alle Backups löschen, die älter als 30 Tage sind?')) {
+        fetch('/api/cleanup_backups', {method: 'POST'})
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showAlert(data.message, 'success');
+                    setTimeout(() => window.location.reload(), 1500);
+                } else {
+                    showAlert(data.error, 'danger');
+                }
+            })
+            .catch(error => {
+                showAlert('Fehler beim Cleanup: ' + error.message, 'danger');
+            });
+    }
+}
+
+function refreshData() {
+    window.location.reload();
+}
+
+// API-Endpoints (diese müssten in der Flask-App implementiert werden)
+// /api/view_backup?path=...
+// /api/download_backup?path=...
+// /api/delete_backup (POST)
+// /api/cleanup_backups (POST)
+</script>
+{% endblock %} 
