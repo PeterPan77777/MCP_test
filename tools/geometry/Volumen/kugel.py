@@ -108,8 +108,8 @@ HAS_SOLVING = "symbolic"
 
 # Referenz-Einheiten
 REFERENCE_UNITS = {
-    "volume": "m³",
-    "radius": "m"
+    f"{FUNCTION_PARAM_1_NAME}": "m³",
+    f"{FUNCTION_PARAM_2_NAME}": "m"
 }
 
 # ===== IMPORTS =====
@@ -172,13 +172,13 @@ def prepare_batch_combinations(params: Dict[str, Any]) -> List[Dict[str, str]]:
     return combinations
 
 def solve_kugel(
-    volume: Annotated[Union[str, List[str]], "Volumen der Kugel mit Volumeneinheit (z.B. '523.6 cm³', '0.0005236 m³', '523600 mm³') oder 'target' für Berechnung. BATCH: Als Teil einer Liste mit vollständigen Parametersätzen"],
-    radius: Annotated[Union[str, List[str]], "Radius der Kugel mit Längeneinheit (z.B. '5 cm', '50 mm', '0.05 m') oder 'target' für Berechnung. BATCH: Als Teil einer Liste mit vollständigen Parametersätzen"]
+    volumen: Annotated[Union[str, List[str]], FUNCTION_PARAM_1_DESC],
+    radius: Annotated[Union[str, List[str]], FUNCTION_PARAM_2_DESC]
 ) -> Union[Dict, List[Dict]]:
     try:
         # Erstelle Parameter-Dictionary
         params_dict = {
-            'volume': volume,
+            'volumen': volumen,
             'radius': radius
         }
         
@@ -211,7 +211,7 @@ def solve_kugel(
         # Wenn nur eine Kombination, führe normale Berechnung durch
         if len(combinations) == 1:
             return _solve_single(
-                combinations[0]['volume'],
+                combinations[0]['volumen'],
                 combinations[0]['radius']
             )
         
@@ -220,7 +220,7 @@ def solve_kugel(
         for i, combo in enumerate(combinations):
             try:
                 result = _solve_single(
-                    combo['volume'],
+                    combo['volumen'],
                     combo['radius']
                 )
                 # Füge Batch-Index hinzu
@@ -251,7 +251,7 @@ def solve_kugel(
         }
 
 def _solve_single(
-    volume: str,
+    volumen: str,
     radius: str
 ) -> Dict:
     """
@@ -264,7 +264,7 @@ def _solve_single(
         given_params = []
         
         params_info = {
-            'volume': volume,
+            'volumen': volumen,
             'radius': radius
         }
         
@@ -279,7 +279,7 @@ def _solve_single(
             return {
                 "error": f"Genau ein Parameter muss 'target' sein (gefunden: {len(target_params)})",
                 "target_params": target_params,
-                "example": "solve_kugel(volume='target', radius='5 cm')",
+                "example": f"solve_kugel({FUNCTION_PARAM_1_NAME}='target', {FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}')",
                 "hinweis": "Geben Sie genau einen Parameter als 'target' an"
             }
         
@@ -287,7 +287,7 @@ def _solve_single(
             return {
                 "error": f"Genau 1 Parameter muss einen Wert mit Einheit haben (gefunden: {len(given_params)})",
                 "given_params": given_params,
-                "example": "solve_kugel(volume='target', radius='5 cm')"
+                "example": f"solve_kugel({FUNCTION_PARAM_1_NAME}='target', {FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}')"
             }
         
         target_param = target_params[0]
@@ -306,13 +306,13 @@ def _solve_single(
                 "message": str(e),
                 "hinweis": "Der Nicht-Target-Parameter muss mit Einheit angegeben werden",
                 "beispiele": [
-                    "volume='523 cm³'",
-                    "radius='5 cm'"
+                    f"{FUNCTION_PARAM_1_NAME}='{FUNCTION_PARAM_1_EXAMPLE}'",
+                    f"{FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}'"
                 ]
             }
         
         # Berechnung basierend auf target Parameter
-        if target_param == 'volume':
+        if target_param == 'volumen':
             # Berechne Volumen: V = (4/3) × π × r³
             r_si = params['radius']['si_value']  # in Metern
             
@@ -326,23 +326,24 @@ def _solve_single(
             volume_optimized = optimize_volume_unit(volume_quantity, params['radius']['original_unit'])
             
             return {
-                "target_parameter": "volume",
+                "target_parameter": FUNCTION_PARAM_1_NAME,
                 "gegebene_werte": {
-                    "radius": radius
+                    FUNCTION_PARAM_2_NAME: radius
                 },
                 "ergebnis": {
-                    "volumen": f"{volume_optimized.magnitude:.6g} {volume_optimized.units}"
+                    FUNCTION_PARAM_1_NAME: f"{volume_optimized.magnitude:.6g} {volume_optimized.units}"
                 },
                 "formel": "V = (4/3) × π × r³",
+                "berechnungsart": "📊 ANALYTICAL SOLUTION",
                 "si_werte": {
-                    "volumen_si": f"{v_si:.6g} m³",
-                    "radius_si": f"{r_si:.6g} m"
+                    f"{FUNCTION_PARAM_1_NAME}_si": f"{v_si:.6g} m³",
+                    f"{FUNCTION_PARAM_2_NAME}_si": f"{r_si:.6g} m"
                 }
             }
             
         elif target_param == 'radius':
             # Berechne Radius: r = ∛((3 × V) / (4 × π))
-            v_si = params['volume']['si_value']  # in m³
+            v_si = params['volumen']['si_value']  # in m³
             
             if v_si <= 0:
                 return {"error": "Das Volumen muss positiv sein"}
@@ -353,7 +354,7 @@ def _solve_single(
             radius_quantity = r_si * ureg.meter
             
             # Extrahiere Basis-Längeneinheit aus Volumeneinheit (z.B. cm³ -> cm)
-            original_unit = params['volume']['original_unit']
+            original_unit = params['volumen']['original_unit']
             if '³' in original_unit or '3' in original_unit:
                 base_unit = original_unit.replace('³', '').replace('3', '')
                 radius_optimized = optimize_output_unit(radius_quantity, base_unit)
@@ -361,17 +362,18 @@ def _solve_single(
                 radius_optimized = radius_quantity
             
             return {
-                "target_parameter": "radius",
+                "target_parameter": FUNCTION_PARAM_2_NAME,
                 "gegebene_werte": {
-                    "volumen": volume
+                    FUNCTION_PARAM_1_NAME: volumen
                 },
                 "ergebnis": {
-                    "radius": f"{radius_optimized.magnitude:.6g} {radius_optimized.units}"
+                    FUNCTION_PARAM_2_NAME: f"{radius_optimized.magnitude:.6g} {radius_optimized.units}"
                 },
                 "formel": "r = ∛((3 × V) / (4 × π))",
+                "berechnungsart": "📊 ANALYTICAL SOLUTION",
                 "si_werte": {
-                    "radius_si": f"{r_si:.6g} m",
-                    "volumen_si": f"{v_si:.6g} m³"
+                    f"{FUNCTION_PARAM_2_NAME}_si": f"{r_si:.6g} m",
+                    f"{FUNCTION_PARAM_1_NAME}_si": f"{v_si:.6g} m³"
                 }
             }
         
@@ -405,21 +407,16 @@ def optimize_volume_unit(si_quantity, reference_unit_str: str):
 # ⚡ NEUE TOOL-STRUKTUR: get_metadata() und calculate() Funktionen
 
 def get_metadata():
-    """
-    Liefert Tool-Metadaten für Registry-Discovery.
-    
-    Returns:
-        Dict: Tool-Metadaten im neuen TARGET-System Format
-    """
+    """Gibt die Metadaten des Tools für Registry-Discovery zurück"""
     return {
-        # ✅ Template-konforme Struktur
+        # ✅ Neue Registry-Struktur
         "tool_name": TOOL_NAME,
         "short_description": TOOL_SHORT_DESCRIPTION,
         "description": TOOL_DESCRIPTION,
-        "tags": TOOL_TAGS,  # ✅ KORRIGIERT: Verwende die Konstante statt hardcoded!
+        "tags": TOOL_TAGS,
         "has_solving": HAS_SOLVING,
         
-        # ✅ KRITISCH: Parameters Dictionary mit Konstanten
+        # ✅ KRITISCH: Parameters Dictionary für Registry-Discovery
         "parameters": {
             FUNCTION_PARAM_1_NAME: PARAMETER_VOLUMEN,
             FUNCTION_PARAM_2_NAME: PARAMETER_RADIUS
@@ -433,37 +430,39 @@ def get_metadata():
         "output_result": OUTPUT_RESULT,
         "tool_assumptions": TOOL_ASSUMPTIONS,
         "tool_limitations": TOOL_LIMITATIONS,
-        "mathematical_foundation": MATHEMATICAL_FOUNDATION
+        "mathematical_foundation": MATHEMATICAL_FOUNDATION,
+        "norm_foundation": "",  # Kein spezifischer Standard
+        "reference_units": REFERENCE_UNITS,
+        
+        # ✅ Backwards Compatibility (falls andere Teile das alte Format erwarten)
+        "name": TOOL_NAME,  # Legacy
+        "version": TOOL_VERSION,  # Legacy
+        "output": OUTPUT_RESULT,  # Legacy
+        "assumptions": TOOL_ASSUMPTIONS,  # Legacy
+        "limitations": TOOL_LIMITATIONS,  # Legacy
+        "tool_tags": TOOL_TAGS,
+        "tool_short_description": TOOL_SHORT_DESCRIPTION,
+        "parameter_count": len([name for name in globals() if name.startswith('PARAMETER_')]),
+        "tool_description": TOOL_DESCRIPTION
     }
 
 
-def calculate(volume: str, radius: str) -> Dict:
-    """
-    Berechnet Kugel-Volumen-Parameter mit TARGET-System.
-    
-    ⚡ NEUE TOOL-STRUKTUR: Wrapper für solve_kugel mit neuer Signatur.
-    
-    Args:
-        volume: Volumen mit Einheit oder 'target'
-        radius: Radius mit Einheit oder 'target'  
-        
-    Returns:
-        Dict: Berechnungsergebnis mit target_parameter
-    """
-    return solve_kugel(volume=volume, radius=radius)
+def calculate(volumen: str, radius: str) -> Dict:
+    """Legacy-Funktion für Kompatibilität"""
+    return solve_kugel(volumen=volumen, radius=radius)
 
 if __name__ == "__main__":
     # Test-Beispiele
     print("=== Kugel-Tool Tests ===")
     
     # Test 1: Volumen berechnen
-    result1 = solve_kugel(radius="5 cm")
+    result1 = solve_kugel(volumen="target", radius="5 cm")
     print(f"Test 1 - Volumen: {result1}")
     
     # Test 2: Radius berechnen
-    result2 = solve_kugel(volume="523 cm³")
+    result2 = solve_kugel(volumen="523 cm³", radius="target")
     print(f"Test 2 - Radius: {result2}")
     
     # Test 3: Fehler - keine Einheit
-    result3 = solve_kugel(radius="5")
+    result3 = solve_kugel(volumen="target", radius="5")
     print(f"Test 3 - Keine Einheit: {result3}") 
