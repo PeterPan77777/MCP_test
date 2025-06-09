@@ -117,13 +117,7 @@ def _get_tags_field():
     return _create_dynamic_tags_field()
 
 def list_engineering_tools(
-    tags: Annotated[List[str], Field(
-        description="REQUIRED: Tags for filtering tools",
-        min_length=1,
-        max_items=10,
-        examples=[["all"], ["elementar"], ["mechanik"]],
-        title="Engineering Tool Filter Tags"
-    )]
+    tags: Annotated[List[str], _create_dynamic_tags_field()]
 ) -> List[Dict]:
     """
     Listet Engineering-Tools auf - entweder nach spezifischen Tags oder alle verfügbaren Tools.
