@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Kreis-Fläche - Berechnet Fläche, Radius oder Durchmesser
+Kreis-Fläche - Berechnet Fläche oder Radius
 
 Berechnet Kreisflächen mit automatischer Einheiten-Konvertierung.
 Alle Eingaben MÜSSEN mit Einheiten angegeben werden.
 
 Löst die Formel A = π × r² nach verschiedenen Variablen auf.
-Lösbare Variablen: flaeche, radius, durchmesser
+Lösbare Variablen: flaeche, radius
 
 ⚠️ NAMENSKONVENTION: ALLE Parameter-Namen MÜSSEN DEUTSCH sein!
 Beispiele: durchmesser, druck, laenge, breite, hoehe, radius, flaeche, volumen, wanddicke
@@ -14,7 +14,7 @@ Beispiele: durchmesser, druck, laenge, breite, hoehe, radius, flaeche, volumen, 
 🔄 BATCH-MODUS: Unterstützt Verarbeitung mehrerer Parametersätze gleichzeitig!
 Beispiel: radius=["10 mm", "20 mm", "30 mm"] statt radius="10 mm"
 
-Kreisformel: A = π × r² - Berechnet die Fläche eines Kreises aus Radius oder Durchmesser
+Kreisformel: A = π × r² - Berechnet die Fläche eines Kreises aus Radius
 """
 
 # ================================================================================================
@@ -24,7 +24,7 @@ Kreisformel: A = π × r² - Berechnet die Fläche eines Kreises aus Radius oder
 # ===== 🔧 GRUNDKONFIGURATION =====
 TOOL_NAME = "kreis_flaeche"
 TOOL_TAGS = ["elementar"]
-TOOL_SHORT_DESCRIPTION = "Kreis-Fläche - Berechnet Fläche, Radius oder Durchmesser"
+TOOL_SHORT_DESCRIPTION = "Kreis-Fläche - Berechnet Fläche oder Radius"
 TOOL_VERSION = "1.0.0"
 HAS_SOLVING = "symbolic"  # Alle Berechnungen sind analytisch lösbar
 
@@ -36,10 +36,6 @@ FUNCTION_PARAM_1_EXAMPLE = "78.54 cm²"
 FUNCTION_PARAM_2_NAME = "radius"
 FUNCTION_PARAM_2_DESC = "Radius des Kreises mit Längeneinheit (z.B. '5 cm', '50 mm', '0.05 m') oder 'target' für Berechnung. BATCH: Als Teil einer Liste mit vollständigen Parametersätzen"
 FUNCTION_PARAM_2_EXAMPLE = "5 cm"
-
-FUNCTION_PARAM_3_NAME = "durchmesser"
-FUNCTION_PARAM_3_DESC = "Durchmesser des Kreises mit Längeneinheit (z.B. '10 cm', '100 mm', '0.1 m') oder 'target' für Berechnung. BATCH: Als Teil einer Liste mit vollständigen Parametersätzen"
-FUNCTION_PARAM_3_EXAMPLE = "10 cm"
 
 # ===== 📊 METADATEN-STRUKTUR =====
 TOOL_DESCRIPTION = f"""Löst die Kreisformel A = π × r² nach verschiedenen Variablen auf mit TARGET-System.
@@ -53,16 +49,14 @@ Jeder Index repräsentiert einen vollständigen Parametersatz.
 
 Beispiel Batch-Aufruf:
 solve_kreis(
-    flaeche=['target', '10 cm²', 'target'],
-    radius=['5 cm', '10 cm', '15 cm'],
-    durchmesser=['30 cm', 'target', '45 cm']
+    flaeche=['target', '50 cm²', 'target'],
+    radius=['5 cm', '8 cm', '10 cm']
 )
 Dies berechnet 3 separate Kreise mit jeweils einem anderen Target-Parameter.
 
 BERECHNUNGSARTEN:
 {FUNCTION_PARAM_1_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel A = π × r²)
 {FUNCTION_PARAM_2_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel r = √(A/π))
-{FUNCTION_PARAM_3_NAME}: ANALYTISCHE LÖSUNG (geschlossene Formel d = 2 × √(A/π))
 
 Kreisformel: A = π × r²
 
@@ -85,13 +79,6 @@ PARAMETER_RADIUS = {
     "batch_example": ["5 cm", "target", "10 cm"]  # NEU
 }
 
-PARAMETER_DURCHMESSER = {
-    "type": "string | array",  # ERWEITERT für Batch
-    "description": FUNCTION_PARAM_3_DESC,
-    "example": FUNCTION_PARAM_3_EXAMPLE,
-    "batch_example": ["10 cm", "20 cm", "target"]  # NEU
-}
-
 # Output-Definition
 OUTPUT_RESULT = {
     "type": "Quantity",
@@ -102,28 +89,22 @@ OUTPUT_RESULT = {
 # Beispiele (verwenden die definierten Parameter-Namen)
 TOOL_EXAMPLES = [
     {
-        "title": f"Berechne {FUNCTION_PARAM_1_NAME} (analytisch) bei gegebenen {FUNCTION_PARAM_2_NAME} und {FUNCTION_PARAM_3_NAME}",
-        "input": {FUNCTION_PARAM_1_NAME: "target", FUNCTION_PARAM_2_NAME: FUNCTION_PARAM_2_EXAMPLE, FUNCTION_PARAM_3_NAME: FUNCTION_PARAM_3_EXAMPLE},
+        "title": f"Berechne {FUNCTION_PARAM_1_NAME} (analytisch) bei gegebenem {FUNCTION_PARAM_2_NAME}",
+        "input": {FUNCTION_PARAM_1_NAME: "target", FUNCTION_PARAM_2_NAME: FUNCTION_PARAM_2_EXAMPLE},
         "output": f"{FUNCTION_PARAM_1_NAME} in optimierter Einheit mit geschlossener Formel"
     },
     {
         "title": f"Batch-Berechnung: Drei vollständige Parametersätze",
         "input": {
             FUNCTION_PARAM_1_NAME: ["target", "50 cm²", "target"],
-            FUNCTION_PARAM_2_NAME: ["5 cm", "target", "15 cm"],
-            FUNCTION_PARAM_3_NAME: ["10 cm", "20 cm", "30 cm"]
+            FUNCTION_PARAM_2_NAME: ["5 cm", "target", "15 cm"]
         },
         "output": f"Liste von 3 Ergebnissen, jeweils mit unterschiedlichem Target-Parameter"
     },
     {
-        "title": f"Berechne {FUNCTION_PARAM_2_NAME} (analytisch) bei gegebenen {FUNCTION_PARAM_1_NAME} und {FUNCTION_PARAM_3_NAME}",
-        "input": {FUNCTION_PARAM_1_NAME: FUNCTION_PARAM_1_EXAMPLE, FUNCTION_PARAM_2_NAME: "target", FUNCTION_PARAM_3_NAME: FUNCTION_PARAM_3_EXAMPLE},
+        "title": f"Berechne {FUNCTION_PARAM_2_NAME} (analytisch) bei gegebener {FUNCTION_PARAM_1_NAME}",
+        "input": {FUNCTION_PARAM_1_NAME: FUNCTION_PARAM_1_EXAMPLE, FUNCTION_PARAM_2_NAME: "target"},
         "output": f"{FUNCTION_PARAM_2_NAME} in optimierter Einheit mit geschlossener Formel"
-    },
-    {
-        "title": f"Berechne {FUNCTION_PARAM_3_NAME} (analytisch) bei gegebenen {FUNCTION_PARAM_1_NAME} und {FUNCTION_PARAM_2_NAME}",
-        "input": {FUNCTION_PARAM_1_NAME: FUNCTION_PARAM_1_EXAMPLE, FUNCTION_PARAM_2_NAME: FUNCTION_PARAM_2_EXAMPLE, FUNCTION_PARAM_3_NAME: "target"},
-        "output": f"{FUNCTION_PARAM_3_NAME} in optimierter Einheit mit geschlossener Formel"
     }
 ]
 
@@ -131,8 +112,7 @@ TOOL_EXAMPLES = [
 TOOL_ASSUMPTIONS = [
     "Perfekter Kreis (keine Verformungen)",
     "Alle Eingabewerte sind positiv",
-    "Euklidische Geometrie",
-    "Radius = Durchmesser / 2"
+    "Euklidische Geometrie"
 ]
 
 # Einschränkungen  
@@ -144,7 +124,7 @@ TOOL_LIMITATIONS = [
 ]
 
 # Mathematische Grundlagen
-MATHEMATICAL_FOUNDATION = "Kreisformel: A = π × r², wobei r der Radius ist. Alternative: A = π × (d/2)², wobei d der Durchmesser ist"
+MATHEMATICAL_FOUNDATION = "Kreisformel: A = π × r², wobei r der Radius ist"
 
 # Normengrundlage
 NORM_FOUNDATION = ""
@@ -197,14 +177,13 @@ def prepare_batch_combinations(params: Dict[str, Any]) -> List[Dict[str, str]]:
     
     Beispiel:
     Input: {
-        'flaeche': ['target', '10 cm²', 'target'],
-        'radius': ['5 cm', '10 cm', '15 cm'],
-        'durchmesser': ['30 cm', 'target', '45 cm']
+        'flaeche': ['target', '50 cm²', 'target'],
+        'radius': ['5 cm', '8 cm', '10 cm']
     }
     Output: [
-        {'flaeche': 'target', 'radius': '5 cm', 'durchmesser': '30 cm'},
-        {'flaeche': '10 cm²', 'radius': '10 cm', 'durchmesser': 'target'},
-        {'flaeche': 'target', 'radius': '15 cm', 'durchmesser': '45 cm'}
+        {'flaeche': 'target', 'radius': '5 cm'},
+        {'flaeche': '50 cm²', 'radius': '8 cm'},
+        {'flaeche': 'target', 'radius': '10 cm'}
     ]
     """
     # Prüfe ob Batch-Modus
@@ -233,8 +212,7 @@ def prepare_batch_combinations(params: Dict[str, Any]) -> List[Dict[str, str]]:
 def solve_kreis(
     # ⚠️ Hier die konfigurierten Parameter-Namen und -Beschreibungen verwenden:
     flaeche: Annotated[Union[str, List[str]], FUNCTION_PARAM_1_DESC],  
-    radius: Annotated[Union[str, List[str]], FUNCTION_PARAM_2_DESC],
-    durchmesser: Annotated[Union[str, List[str]], FUNCTION_PARAM_3_DESC]
+    radius: Annotated[Union[str, List[str]], FUNCTION_PARAM_2_DESC]
 ) -> Union[Dict, List[Dict]]:
     """
     Löst die Kreisformel A = π × r² nach verschiedenen Variablen auf.
@@ -247,8 +225,7 @@ def solve_kreis(
         # Erstelle Parameter-Dictionary
         params_dict = {
             'flaeche': flaeche,
-            'radius': radius, 
-            'durchmesser': durchmesser
+            'radius': radius
         }
         
         # Validiere Batch-Format
@@ -281,8 +258,7 @@ def solve_kreis(
         if len(combinations) == 1:
             return _solve_single(
                 combinations[0]['flaeche'],
-                combinations[0]['radius'],
-                combinations[0]['durchmesser']
+                combinations[0]['radius']
             )
         
         # Batch-Verarbeitung: Berechne alle Kombinationen
@@ -291,8 +267,7 @@ def solve_kreis(
             try:
                 result = _solve_single(
                     combo['flaeche'],
-                    combo['radius'],
-                    combo['durchmesser']
+                    combo['radius']
                 )
                 # Füge Batch-Index hinzu
                 result['batch_index'] = i
@@ -323,8 +298,7 @@ def solve_kreis(
 
 def _solve_single(
     flaeche: str,
-    radius: str,
-    durchmesser: str
+    radius: str
 ) -> Dict:
     """
     Interne Funktion für einzelne Berechnungen.
@@ -337,8 +311,7 @@ def _solve_single(
         
         params_info = {
             'var1': flaeche,
-            'var2': radius, 
-            'var3': durchmesser
+            'var2': radius
         }
         
         for param_name, param_value in params_info.items():
@@ -352,15 +325,15 @@ def _solve_single(
             return {
                 "error": f"Genau ein Parameter muss 'target' sein (gefunden: {len(target_params)})",
                 "target_params": target_params,
-                "example": f"solve_kreis({FUNCTION_PARAM_1_NAME}='target', {FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}', {FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}')",
+                "example": f"solve_kreis({FUNCTION_PARAM_1_NAME}='target', {FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}')",
                 "hinweis": "Geben Sie genau einen Parameter als 'target' an"
             }
         
-        if len(given_params) < 1:
+        if len(given_params) != 1:
             return {
-                "error": f"Mindestens ein Parameter muss Werte mit Einheiten haben (gefunden: {len(given_params)})",
+                "error": f"Genau 1 Parameter muss einen Wert mit Einheit haben (gefunden: {len(given_params)})",
                 "given_params": given_params,
-                "example": f"solve_kreis({FUNCTION_PARAM_1_NAME}='target', {FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}', {FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}')"
+                "example": f"solve_kreis({FUNCTION_PARAM_1_NAME}='target', {FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}')"
             }
         
         target_param = target_params[0]
@@ -369,8 +342,7 @@ def _solve_single(
         validation_kwargs = {}
         param_names = {
             'var1': 'flaeche',
-            'var2': 'radius', 
-            'var3': 'durchmesser'
+            'var2': 'radius'
         }
         
         for param_name in given_params:
@@ -384,28 +356,19 @@ def _solve_single(
             return {
                 "error": "Einheiten-Fehler",
                 "message": str(e),
-                "hinweis": "Alle Nicht-Target-Parameter müssen mit Einheiten angegeben werden",
+                "hinweis": "Der Nicht-Target-Parameter muss mit Einheit angegeben werden",
                 "beispiele": [
                     f"{FUNCTION_PARAM_1_NAME}='{FUNCTION_PARAM_1_EXAMPLE}'",
-                    f"{FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}'", 
-                    f"{FUNCTION_PARAM_3_NAME}='{FUNCTION_PARAM_3_EXAMPLE}'"
+                    f"{FUNCTION_PARAM_2_NAME}='{FUNCTION_PARAM_2_EXAMPLE}'"
                 ]
             }
         
         # Berechnung basierend auf target Parameter
         if target_param == 'var1':  # flaeche
-            # Bestimme Radius (aus radius oder durchmesser)
-            if 'radius' in params:
-                r_si = params['radius']['si_value']
-                ref_unit = params['radius']['original_unit']
-                gegebene_werte = {"radius": radius}
-            elif 'durchmesser' in params:
-                d_si = params['durchmesser']['si_value']
-                r_si = d_si / 2.0
-                ref_unit = params['durchmesser']['original_unit']
-                gegebene_werte = {"durchmesser": durchmesser}
-            else:
-                return {"error": "Für Flächenberechnung muss entweder Radius oder Durchmesser gegeben sein"}
+            # Berechne Fläche: A = π × r²
+            r_si = params['radius']['si_value']
+            ref_unit = params['radius']['original_unit']
+            gegebene_werte = {"radius": radius}
             
             if r_si <= 0:
                 return {"error": "Alle Werte müssen positiv sein"}
@@ -432,29 +395,13 @@ def _solve_single(
             }
             
         elif target_param == 'var2':  # radius
-            # Bestimme Fläche
-            if 'flaeche' not in params:
-                return {"error": "Für Radiusberechnung muss Fläche gegeben sein"}
-            
+            # Berechne Radius: r = √(A/π)
             flaeche_si = params['flaeche']['si_value']
             if flaeche_si <= 0:
                 return {"error": "Alle Werte müssen positiv sein"}
             
             # Berechne Radius: r = √(A/π)
             radius_si = math.sqrt(flaeche_si / math.pi)
-            
-            # Validiere gegen Durchmesser wenn gegeben
-            if 'durchmesser' in params:
-                d_si = params['durchmesser']['si_value']
-                expected_radius = d_si / 2.0
-                error_percent = abs(radius_si - expected_radius) / expected_radius * 100
-                if error_percent > 1:  # 1% Toleranz
-                    return {
-                        "error": "Inkonsistente Eingaben: Berechneter Radius stimmt nicht mit Durchmesser überein",
-                        "berechneter_radius": f"{radius_si:.6g} m",
-                        "erwarteter_radius": f"{expected_radius:.6g} m",
-                        "abweichung": f"{error_percent:.2f}%"
-                    }
             
             # Optimiere Ausgabe-Einheit
             ref_unit = params['flaeche']['original_unit']
@@ -472,46 +419,6 @@ def _solve_single(
                 "si_werte": {
                     "radius_si": f"{radius_si:.6g} m",
                     "flaeche_si": f"{flaeche_si:.6g} m²"
-                }
-            }
-            
-        elif target_param == 'var3':  # durchmesser
-            # Bestimme Radius
-            if 'radius' in params:
-                r_si = params['radius']['si_value']
-                ref_unit = params['radius']['original_unit']
-                gegebene_werte = {"radius": radius}
-            elif 'flaeche' in params:
-                flaeche_si = params['flaeche']['si_value']
-                if flaeche_si <= 0:
-                    return {"error": "Alle Werte müssen positiv sein"}
-                r_si = math.sqrt(flaeche_si / math.pi)
-                ref_unit = params['flaeche']['original_unit']
-                gegebene_werte = {"flaeche": flaeche}
-            else:
-                return {"error": "Für Durchmesserberechnung muss entweder Radius oder Fläche gegeben sein"}
-            
-            if r_si <= 0:
-                return {"error": "Alle Werte müssen positiv sein"}
-            
-            # Berechne Durchmesser: d = 2 × r
-            durchmesser_si = 2.0 * r_si
-            
-            # Optimiere Ausgabe-Einheit
-            durchmesser_quantity = durchmesser_si * ureg.meter
-            durchmesser_optimized = optimize_output_unit(durchmesser_quantity, ref_unit)
-            
-            return {
-                "📊 ANALYTICAL SOLUTION": "Geschlossene Formel",
-                "target_parameter": "durchmesser",
-                "gegebene_werte": gegebene_werte,
-                "ergebnis": {
-                    "durchmesser": f"{durchmesser_optimized.magnitude:.6g} {durchmesser_optimized.units}"
-                },
-                "formel": "d = 2 × r",
-                "si_werte": {
-                    "durchmesser_si": f"{durchmesser_si:.6g} m",
-                    "radius_si": f"{r_si:.6g} m"
                 }
             }
         
@@ -540,8 +447,7 @@ def get_metadata():
         # ✅ KRITISCH: Parameters Dictionary für Registry-Discovery
         "parameters": {
             FUNCTION_PARAM_1_NAME: PARAMETER_FLAECHE,
-            FUNCTION_PARAM_2_NAME: PARAMETER_RADIUS,
-            FUNCTION_PARAM_3_NAME: PARAMETER_DURCHMESSER
+            FUNCTION_PARAM_2_NAME: PARAMETER_RADIUS
         },
         
         # ✅ Beispiele im neuen Format
@@ -561,10 +467,9 @@ def get_metadata():
         "parameter_count": PARAMETER_COUNT,
         "tool_description": TOOL_DESCRIPTION,
         "parameter_flaeche": PARAMETER_FLAECHE,
-        "parameter_radius": PARAMETER_RADIUS,
-        "parameter_durchmesser": PARAMETER_DURCHMESSER
+        "parameter_radius": PARAMETER_RADIUS
     }
 
-def calculate(flaeche: Union[str, List[str]], radius: Union[str, List[str]], durchmesser: Union[str, List[str]]) -> Union[Dict, List[Dict]]:
+def calculate(flaeche: Union[str, List[str]], radius: Union[str, List[str]]) -> Union[Dict, List[Dict]]:
     """Legacy-Funktion für Kompatibilität - unterstützt nun auch Batch-Mode"""
-    return solve_kreis(flaeche, radius, durchmesser)
+    return solve_kreis(flaeche, radius)

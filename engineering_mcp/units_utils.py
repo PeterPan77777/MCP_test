@@ -6,14 +6,38 @@ Dieses Modul behandelt alle Einheiten-Operationen:
 - Eingabe-Validierung (Einheiten müssen vorhanden sein)
 - Umrechnung in SI-Einheiten
 - Größenordnungs-optimierte Ausgabe in gleicher Grundeinheit
+
+🔧 OPTIMIERT: Lazy Loading für Pint um NumPy-Konflikte zu vermeiden
 """
 
-import pint
 from typing import Dict, Any, Union, Tuple
 import re
 
-# Pint Unit Registry
-ureg = pint.UnitRegistry()
+# Globale Variable für Pint Registry (Lazy Loading)
+_ureg = None
+
+def get_ureg():
+    """
+    Lazy Loading für Pint UnitRegistry um NumPy-Konflikte zu vermeiden.
+    
+    Returns:
+        pint.UnitRegistry: Die globale Unit Registry
+    """
+    global _ureg
+    if _ureg is None:
+        try:
+            import pint
+            _ureg = pint.UnitRegistry()
+        except ImportError as e:
+            raise ImportError(f"Pint nicht verfügbar: {e}")
+    return _ureg
+
+# Export für direkte Verwendung über __getattr__
+def __getattr__(name):
+    """Module-level __getattr__ für dynamische Attribute - ermöglicht 'from units_utils import ureg'"""
+    if name == "ureg":
+        return get_ureg()
+    raise AttributeError(f"module '{__name__}' has no attribute '{name}'")
 
 class UnitsError(Exception):
     """Fehler bei Einheiten-Operationen"""
@@ -47,7 +71,7 @@ def parse_value_with_unit(value_str: str) -> Tuple[float, str]:
     
     return value, unit_str
 
-def convert_to_si(value_str: str) -> pint.Quantity:
+def convert_to_si(value_str: str):
     """
     Konvertiert Eingabe-String in SI-Einheiten.
     
@@ -61,6 +85,7 @@ def convert_to_si(value_str: str) -> pint.Quantity:
         UnitsError: Bei Parsing- oder Konvertierungsfehlern
     """
     try:
+        ureg = get_ureg()  # Lazy loading
         value, unit_str = parse_value_with_unit(value_str)
         
         # Pint Quantity erstellen
@@ -76,19 +101,21 @@ def convert_to_si(value_str: str) -> pint.Quantity:
             raise
         raise UnitsError(f"Fehler beim Konvertieren von '{value_str}': {str(e)}")
 
-def optimize_output_unit(si_quantity: pint.Quantity, reference_unit_str: str) -> pint.Quantity:
+def optimize_output_unit(si_quantity, reference_unit_str: str):
     """
     Optimiert die Ausgabeeinheit basierend auf Größenordnung.
     Behält die gleiche Grundeinheit wie die Referenz-Eingabe.
     
     Args:
-        si_quantity: Ergebnis in SI-Einheiten
+        si_quantity: Ergebnis in SI-Einheiten (pint.Quantity)
         reference_unit_str: Original-Einheit der Eingabe (z.B. "mm")
         
     Returns:
         pint.Quantity mit optimierter Einheit
     """
     try:
+        ureg = get_ureg()  # Lazy loading
+        
         # Bestimme Dimensionalität basierend auf der Ergebnis-Quantity
         result_dimensionality = si_quantity.dimensionality
         magnitude = si_quantity.magnitude
@@ -114,11 +141,12 @@ def optimize_output_unit(si_quantity: pint.Quantity, reference_unit_str: str) ->
         # Fallback: SI-Einheit zurückgeben
         return si_quantity
 
-def optimize_length_unit(si_quantity: pint.Quantity, reference_unit_str: str) -> pint.Quantity:
+def optimize_length_unit(si_quantity, reference_unit_str: str):
     """
     Optimiert Längeneinheiten basierend auf Größenordnung.
     """
     try:
+        ureg = get_ureg()  # Lazy loading
         magnitude = si_quantity.magnitude  # in Metern
         
         # Häufige Einheiten-Präfixe (von klein zu groß)
@@ -152,11 +180,12 @@ def optimize_length_unit(si_quantity: pint.Quantity, reference_unit_str: str) ->
     except Exception:
         return si_quantity
 
-def optimize_pressure_unit(si_quantity: pint.Quantity, reference_unit_str: str) -> pint.Quantity:
+def optimize_pressure_unit(si_quantity, reference_unit_str: str):
     """
     Optimiert Druckeinheiten basierend auf Größenordnung.
     """
     try:
+        ureg = get_ureg()  # Lazy loading
         magnitude = si_quantity.magnitude  # in Pascal
         
         # Bestimme beste Druckeinheit
@@ -174,7 +203,7 @@ def optimize_pressure_unit(si_quantity: pint.Quantity, reference_unit_str: str) 
     except Exception:
         return si_quantity
 
-def optimize_area_unit(si_quantity: pint.Quantity, reference_unit_str: str) -> pint.Quantity:
+def optimize_area_unit(si_quantity, reference_unit_str: str):
     """
     Speziell für Flächeneinheiten optimierte Ausgabe.
     
@@ -186,6 +215,7 @@ def optimize_area_unit(si_quantity: pint.Quantity, reference_unit_str: str) -> p
         pint.Quantity mit optimierter Flächeneinheit
     """
     try:
+        ureg = get_ureg()  # Lazy loading
         magnitude = si_quantity.magnitude  # in m²
         
         # Bestimme optimale Flächeneinheit basierend auf Größenordnung
@@ -257,6 +287,8 @@ def convert_pressure(pressure_value: str, target_unit: str) -> Dict:
         UnitsError: Bei ungültigen Einheiten oder Konvertierungsfehlern
     """
     try:
+        ureg = get_ureg()  # Lazy loading
+        
         # Parse Eingabewert
         value, unit_str = parse_value_with_unit(pressure_value)
         

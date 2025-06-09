@@ -66,16 +66,36 @@ async def discover_engineering_tools() -> int:
                 else:
                     # Tool-Modul gefunden - NUR NEUE STRUKTUR!
                     try:
-                        # Importiere das Tool-Modul
-                        tool_module = importlib.import_module(name)
+                        # 🔧 ROBUSTES IMPORT: Einzelner Tool-Fehler blockiert nicht das ganze System
+                        tool_module = None
+                        try:
+                            tool_module = importlib.import_module(name)
+                        except ImportError as ie:
+                            # Spezielle Behandlung für Import-Fehler (z.B. NumPy-Konflikte)
+                            print(f"ERROR: Failed to load {name}: {ie}")
+                            continue
+                        except Exception as generic_error:
+                            # Andere Fehler beim Import
+                            print(f"ERROR: Failed to load {name}: {generic_error}")
+                            continue
+                        
+                        if tool_module is None:
+                            continue
                         
                         # NUR NEUE STRUKTUR: get_metadata() und calculate() Funktionen
                         if hasattr(tool_module, 'get_metadata') and hasattr(tool_module, 'calculate'):
                             try:
-                                metadata = tool_module.get_metadata()
+                                # 🔧 SICHERE METADATEN-EXTRAKTION
+                                metadata = None
+                                try:
+                                    metadata = tool_module.get_metadata()
+                                except Exception as me:
+                                    print(f"ERROR: Failed to get metadata from {name}: {me}")
+                                    continue
+                                
                                 calculate_func = tool_module.calculate
                                 
-                                if calculate_func and callable(calculate_func):
+                                if calculate_func and callable(calculate_func) and metadata:
                                     # Speichere in separater Registry
                                     tool_id = metadata.get('tool_name', name.split('.')[-1])
                                     category = category_override if category_override else name.split('.')[-2]
@@ -84,7 +104,7 @@ async def discover_engineering_tools() -> int:
                                     tool_tags = metadata.get('tags', []) or metadata.get('tool_tags', [])
                                     if not tool_tags:
                                         tool_tags = ['unknown']
-                                        warnings.append(f"ERROR: {tool_id}: No tags defined -> 'unknown' assigned")
+                                        warnings.append(f"WARNING: {tool_id}: No tags defined -> 'unknown' assigned")
                                     
                                     _ENGINEERING_TOOLS_REGISTRY[tool_id] = {
                                         'name': tool_id,
@@ -95,13 +115,15 @@ async def discover_engineering_tools() -> int:
                                         'category': category,
                                         'module': tool_module,
                                         'metadata': metadata,
-                
+        
                                         'has_solving': metadata.get('has_solving', 'symbolic')
                                     }
                                     print(f"SUCCESS: Discovered {tool_id} in {category}")
                                     discovered_count += 1
+                                else:
+                                    print(f"WARNING: Tool {name}: Invalid calculate function or metadata")
                             except Exception as e:
-                                print(f"ERROR: Failed to load metadata from {name}: {e}")
+                                print(f"ERROR: Failed to process {name}: {e}")
                         else:
                             print(f"WARNING: Tool {name} ignored: No get_metadata() or calculate() function (old structure not supported)")
                             
