@@ -128,7 +128,7 @@ REFERENCE_UNITS = {
 # 🔧 IMPORTS & DEPENDENCIES 🔧
 # ================================================================================================
 
-from typing import Dict, Optional, Annotated
+from typing import Dict, Optional, Annotated, List, Any, Union
 import sys
 import os
 import math
@@ -142,10 +142,10 @@ from engineering_mcp.units_utils import validate_inputs_have_units, optimize_out
 # ================================================================================================
 
 def solve_zylinder(
-    volumen: Annotated[str, f"{FUNCTION_PARAM_1_DESC}"],
-    radius: Annotated[str, f"{FUNCTION_PARAM_2_DESC}"],
-    hoehe: Annotated[str, f"{FUNCTION_PARAM_3_DESC}"]
-) -> Dict:
+    volumen: Annotated[Union[str, List[str]], FUNCTION_PARAM_1_DESC],
+    radius: Annotated[Union[str, List[str]], FUNCTION_PARAM_2_DESC],
+    hoehe: Annotated[Union[str, List[str]], FUNCTION_PARAM_3_DESC]
+) -> Union[Dict, List[Dict]]:
     """
     📊 ANALYTICAL SOLUTION
     
@@ -376,13 +376,9 @@ def get_metadata():
     }
 
 # Legacy-Wrapper für Abwärtskompatibilität
-def calculate(volume: str, radius: str, height: str) -> Dict:
-    """Legacy-Wrapper-Funktion für Abwärtskompatibilität"""
-    return solve_zylinder(
-        volumen=volume,
-        radius=radius,
-        hoehe=height
-    )
+def calculate(volumen: str, radius: str, hoehe: str) -> Dict:
+    """Legacy-Funktion für Kompatibilität"""
+    return solve_zylinder(volumen=volumen, radius=radius, hoehe=hoehe)
 
 if __name__ == "__main__":
     # Test-Beispiele

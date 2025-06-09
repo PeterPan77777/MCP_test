@@ -599,14 +599,9 @@ def get_metadata():
     }
 
 # Legacy-Wrapper für Abwärtskompatibilität
-def calculate(volume: str, length: str, width: str, height: str) -> Dict:
-    """Legacy-Wrapper-Funktion für Abwärtskompatibilität"""
-    return solve_quader(
-        volumen=volume,
-        laenge=length,
-        breite=width,
-        hoehe=height
-    )
+def calculate(volumen: str, laenge: str, breite: str, hoehe: str) -> Dict:
+    """Legacy-Funktion für Kompatibilität"""
+    return solve_quader(volumen=volumen, laenge=laenge, breite=breite, hoehe=hoehe)
 
 if __name__ == "__main__":
     # Test-Beispiele

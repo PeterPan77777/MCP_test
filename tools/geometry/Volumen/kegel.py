@@ -128,7 +128,7 @@ REFERENCE_UNITS = {
 # 🔧 IMPORTS & DEPENDENCIES 🔧
 # ================================================================================================
 
-from typing import Dict, Optional, Annotated
+from typing import Dict, Optional, Annotated, List, Any, Union
 import sys
 import os
 import math
@@ -142,22 +142,106 @@ from engineering_mcp.units_utils import validate_inputs_have_units, optimize_out
 # ================================================================================================
 
 def solve_kegel(
-    volumen: Annotated[str, f"{FUNCTION_PARAM_1_DESC}"],
-    radius: Annotated[str, f"{FUNCTION_PARAM_2_DESC}"],
-    hoehe: Annotated[str, f"{FUNCTION_PARAM_3_DESC}"]
-) -> Dict:
+    volumen: Annotated[Union[str, List[str]], FUNCTION_PARAM_1_DESC],
+    radius: Annotated[Union[str, List[str]], FUNCTION_PARAM_2_DESC],
+    hoehe: Annotated[Union[str, List[str]], FUNCTION_PARAM_3_DESC]
+) -> Union[Dict, List[Dict]]:
     """
     📊 ANALYTICAL SOLUTION
     
     Löst die Kegel-Volumen-Formel V = (1/3) × π × r² × h nach verschiedenen Variablen auf.
     
-    Args:
-        volumen: Volumen mit Einheit oder 'target'
-        radius: Radius mit Einheit oder 'target' 
-        hoehe: Höhe mit Einheit oder 'target'
-    
-    Returns:
-        Dict mit Berechnungsergebnis und Metadaten
+    Unterstützt Batch-Verarbeitung: Wenn Listen als Parameter übergeben werden,
+    müssen ALLE Parameter Listen gleicher Länge sein. Jeder Index repräsentiert
+    einen vollständigen Parametersatz.
+    """
+    try:
+        # Erstelle Parameter-Dictionary
+        params_dict = {
+            'volumen': volumen,
+            'radius': radius,
+            'hoehe': hoehe
+        }
+        
+        # Validiere Batch-Format
+        list_params = [k for k, v in params_dict.items() if isinstance(v, list)]
+        if list_params:
+            # Einige Parameter sind Listen - prüfe ob ALLE Listen sind
+            non_list_params = [k for k, v in params_dict.items() if not isinstance(v, list)]
+            if non_list_params:
+                return {
+                    "error": "Batch-Modus erfordert, dass ALLE Parameter Listen sind",
+                    "list_params": list_params,
+                    "non_list_params": non_list_params,
+                    "hinweis": "Entweder alle Parameter als einzelne Werte ODER alle als Listen gleicher Länge"
+                }
+            
+            # Prüfe ob alle Listen gleiche Länge haben
+            lengths = {k: len(v) for k, v in params_dict.items()}
+            unique_lengths = set(lengths.values())
+            if len(unique_lengths) > 1:
+                return {
+                    "error": "Alle Parameter-Listen müssen die gleiche Länge haben",
+                    "lengths": lengths,
+                    "hinweis": "Jeder Index repräsentiert einen vollständigen Parametersatz"
+                }
+        
+        # Erstelle alle Kombinationen für Batch-Verarbeitung
+        from engineering_mcp.batch_utils import prepare_batch_combinations
+        combinations = prepare_batch_combinations(params_dict)
+        
+        # Wenn nur eine Kombination, führe normale Berechnung durch
+        if len(combinations) == 1:
+            return _solve_single_kegel(
+                combinations[0]['volumen'],
+                combinations[0]['radius'],
+                combinations[0]['hoehe']
+            )
+        
+        # Batch-Verarbeitung: Berechne alle Kombinationen
+        results = []
+        for i, combo in enumerate(combinations):
+            try:
+                result = _solve_single_kegel(
+                    combo['volumen'],
+                    combo['radius'],
+                    combo['hoehe']
+                )
+                # Füge Batch-Index hinzu
+                result['batch_index'] = i
+                result['input_combination'] = combo
+                results.append(result)
+            except Exception as e:
+                # Bei Fehler in einer Berechnung, füge Fehler-Ergebnis hinzu
+                results.append({
+                    'batch_index': i,
+                    'input_combination': combo,
+                    'error': str(e),
+                    'type': type(e).__name__
+                })
+        
+        return {
+            "batch_mode": True,
+            "total_calculations": len(combinations),
+            "successful": sum(1 for r in results if 'error' not in r),
+            "failed": sum(1 for r in results if 'error' in r),
+            "results": results
+        }
+        
+    except Exception as e:
+        return {
+            "error": f"Fehler in solve_kegel: {str(e)}",
+            "type": type(e).__name__
+        }
+
+def _solve_single_kegel(
+    volumen: str,
+    radius: str,
+    hoehe: str
+) -> Dict:
+    """
+    Interne Funktion für einzelne Berechnungen.
+    Enthält die ursprüngliche Berechnungslogik.
     """
     try:
         # Identifiziere target Parameter
@@ -368,30 +452,26 @@ def get_metadata():
     }
 
 # Legacy-Wrapper für Abwärtskompatibilität
-def calculate(volume: str, radius: str, height: str) -> Dict:
-    """Legacy-Wrapper-Funktion für Abwärtskompatibilität"""
-    return solve_kegel(
-        volumen=volume,
-        radius=radius,
-        hoehe=height
-    )
+def calculate(volumen: str, radius: str, hoehe: str) -> Dict:
+    """Legacy-Funktion für Kompatibilität"""
+    return solve_kegel(volumen=volumen, radius=radius, hoehe=hoehe)
 
 if __name__ == "__main__":
     # Test-Beispiele
     print("=== Kegel-Tool Tests ===")
     
     # Test 1: Volumen berechnen
-    result1 = solve_kegel(radius="5 cm", hoehe="10 cm")
+    result1 = solve_kegel(volumen="target", radius="5 cm", hoehe="10 cm")
     print(f"Test 1 - Volumen: {result1}")
     
     # Test 2: Radius berechnen
-    result2 = solve_kegel(volumen="261.8 cm³", hoehe="10 cm")
+    result2 = solve_kegel(volumen="261.8 cm³", radius="target", hoehe="10 cm")
     print(f"Test 2 - Radius: {result2}")
     
     # Test 3: Höhe berechnen
-    result3 = solve_kegel(volumen="261.8 cm³", radius="5 cm")
+    result3 = solve_kegel(volumen="261.8 cm³", radius="5 cm", hoehe="target")
     print(f"Test 3 - Höhe: {result3}")
     
     # Test 4: Fehler - keine Einheit
-    result4 = solve_kegel(radius="5", hoehe="10 cm")
+    result4 = solve_kegel(volumen="target", radius="5", hoehe="10 cm")
     print(f"Test 4 - Keine Einheit: {result4}") 
