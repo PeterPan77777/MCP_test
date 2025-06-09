@@ -132,10 +132,60 @@ from typing import Dict, Optional, Annotated, List, Any, Union
 import sys
 import os
 import math
+import math
 
 # Import des Einheiten-Utilities
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 from engineering_mcp.units_utils import validate_inputs_have_units, optimize_output_unit, UnitsError, ureg
+
+# ================================================================================================
+# 🔄 BATCH PROCESSING HELPERS 🔄
+# ================================================================================================
+
+def is_batch_input(params: Dict[str, Any]) -> bool:
+    """
+    Prüft ob die Parameter im Batch-Modus sind.
+    Batch-Modus: ALLE Parameter sind Listen gleicher Länge.
+    """
+    list_params = [k for k, v in params.items() if isinstance(v, list)]
+    
+    # Wenn keine Listen, kein Batch-Modus
+    if not list_params:
+        return False
+    
+    # ALLE Parameter müssen Listen sein
+    if len(list_params) != len(params):
+        return False
+    
+    # Alle Listen müssen gleiche Länge haben
+    lengths = [len(params[k]) for k in list_params]
+    return len(set(lengths)) == 1 and lengths[0] > 0
+
+def prepare_batch_combinations(params: Dict[str, Any]) -> List[Dict[str, str]]:
+    """
+    Erstellt Parametersätze für Batch-Verarbeitung.
+    
+    NEU: Alle Parameter müssen Listen gleicher Länge sein!
+    Jeder Index repräsentiert einen vollständigen Parametersatz.
+    """
+    # Prüfe ob Batch-Modus
+    if not is_batch_input(params):
+        # Einzelberechnung - gib Parameter unverändert zurück
+        return [params]
+    
+    # Batch-Modus: Alle Parameter sind Listen
+    # Hole die Anzahl der Berechnungen (alle Listen haben gleiche Länge)
+    num_calculations = len(next(iter(params.values())))
+    
+    # Erstelle Parametersätze für jeden Index
+    combinations = []
+    for i in range(num_calculations):
+        combo = {}
+        for key, values in params.items():
+            combo[key] = values[i]
+        combinations.append(combo)
+    
+    return combinations
 
 # ================================================================================================
 # 🎯 TOOL FUNCTIONS 🎯
@@ -187,7 +237,6 @@ def solve_kegel(
                 }
         
         # Erstelle alle Kombinationen für Batch-Verarbeitung
-        from engineering_mcp.batch_utils import prepare_batch_combinations
         combinations = prepare_batch_combinations(params_dict)
         
         # Wenn nur eine Kombination, führe normale Berechnung durch
