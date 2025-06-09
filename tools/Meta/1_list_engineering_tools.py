@@ -227,15 +227,56 @@ def list_engineering_tools(
     # ADDITIONAL VALIDATION: Warnung bei 0 gefundenen Tools (außer bei leerem System)
     if len(result_tools) == 0 and len(all_tools) > 0:
         # Es gibt Tools, aber keine passen zu den Tags
+        try:
+            # LAZY LOADING: Importiere Tag-Definitionen für vollständige Liste
+            from engineering_mcp.tag_definitions import get_tag_definitions
+            
+            tag_definitions = get_tag_definitions()
+            available_tag_names = ["all"] + sorted(tag_definitions.keys())
+            
+            # COMPLETE Tag-Dictionary mit ALLEN Beschreibungen
+            complete_tag_descriptions = {
+                "all": "Complete overview - Shows all available Engineering tools (full library overview)"
+            }
+            
+            for tag_name, tag_data in tag_definitions.items():
+                complete_tag_descriptions[tag_name] = tag_data["description"]
+            
+            # Formatierte Tag-Liste für bessere Lesbarkeit
+            tag_info = ["'all' - Complete overview - Shows all available Engineering tools"]
+            for tag_name in sorted(tag_definitions.keys()):
+                description = tag_definitions[tag_name]["description"]
+                tag_info.append(f"'{tag_name}' - {description}")
+                
+        except Exception:
+            # Fallback bei Problemen
+            available_tag_names = ["all", "unknown"]
+            complete_tag_descriptions = {
+                "all": "Complete overview - Shows all available tools",
+                "unknown": "WARNING: Tools without tag classification (tag_definitions.py problem)"
+            }
+            tag_info = [
+                "'all' - Complete overview - Shows all available tools",
+                "'unknown' - WARNING: Tools without tag classification"
+            ]
+        
         return [
             {
                 "warning": "NO_TOOLS_FOUND",
                 "tags_searched": tags,
                 "total_tools_available": len(all_tools),
                 "message": f"Keine Tools für Tags gefunden: {tags}",
+                "available_tags": available_tag_names,  # Liste aller verfügbaren Tag-Namen
+                "tag_descriptions": complete_tag_descriptions,  # VOLLSTÄNDIGES Dictionary mit allen Beschreibungen
+                "tag_examples": tag_info,  # Formatierte Beispiele für Lesbarkeit
                 "suggestion": "Versuchen Sie andere Tags oder verwenden Sie tags=['all']",
                 "immediate_action": "Versuchen Sie: list_engineering_tools(tags=['all'])",
-                "workflow_step": "1/3 - Keine Treffer"
+                "workflow_step": "1/3 - Keine Treffer",
+                "workflow_info": {
+                    "current_step": "Tool Discovery - Keine passenden Tools gefunden",
+                    "available_options": f"{len(available_tag_names)} Tags verfügbar",
+                    "tip": "Prüfen Sie die verfügbaren Tags in 'tag_descriptions'"
+                }
             }
         ]
     
