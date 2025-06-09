@@ -327,25 +327,44 @@ def solve_kegel(
 # ================================================================================================
 
 def get_metadata():
-    """Generiert die Metadaten für das Tool"""
+    """Gibt die Metadaten des Tools für Registry-Discovery zurück"""
     return {
-        "name": TOOL_NAME,
-        "version": TOOL_VERSION,
-        "tags": TOOL_TAGS,
+        # ✅ Neue Registry-Struktur
+        "tool_name": TOOL_NAME,
         "short_description": TOOL_SHORT_DESCRIPTION,
         "description": TOOL_DESCRIPTION,
+        "tags": TOOL_TAGS,
+        "has_solving": HAS_SOLVING,
+        
+        # ✅ KRITISCH: Parameters Dictionary für Registry-Discovery
         "parameters": {
             FUNCTION_PARAM_1_NAME: PARAMETER_VOLUMEN,
             FUNCTION_PARAM_2_NAME: PARAMETER_RADIUS,
             FUNCTION_PARAM_3_NAME: PARAMETER_HOEHE
         },
-        "output": OUTPUT_RESULT,
+        
+        # ✅ Beispiele im neuen Format
         "examples": TOOL_EXAMPLES,
+        
+        # ✅ Vollständige Metadaten für erweiterte Nutzung
+        "tool_version": TOOL_VERSION,
+        "output_result": OUTPUT_RESULT,
+        "tool_assumptions": TOOL_ASSUMPTIONS,
+        "tool_limitations": TOOL_LIMITATIONS,
         "mathematical_foundation": MATHEMATICAL_FOUNDATION,
-        "assumptions": TOOL_ASSUMPTIONS,
-        "limitations": TOOL_LIMITATIONS,
-        "has_solving": HAS_SOLVING,
-        "reference_units": REFERENCE_UNITS
+        "norm_foundation": "",  # Kein spezifischer Standard
+        "reference_units": REFERENCE_UNITS,
+        
+        # ✅ Backwards Compatibility (falls andere Teile das alte Format erwarten)
+        "name": TOOL_NAME,  # Legacy
+        "version": TOOL_VERSION,  # Legacy
+        "output": OUTPUT_RESULT,  # Legacy
+        "assumptions": TOOL_ASSUMPTIONS,  # Legacy
+        "limitations": TOOL_LIMITATIONS,  # Legacy
+        "tool_tags": TOOL_TAGS,
+        "tool_short_description": TOOL_SHORT_DESCRIPTION,
+        "parameter_count": len([name for name in globals() if name.startswith('PARAMETER_')]),
+        "tool_description": TOOL_DESCRIPTION
     }
 
 # Legacy-Wrapper für Abwärtskompatibilität
