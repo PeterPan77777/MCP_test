@@ -203,12 +203,12 @@ async def call_tool(
     
     # Rate Limiting
     call_count = get_call_count(tool_name)
-    if call_count >= 20:  # Höher für call_tool da es der finale Schritt ist
+    if call_count >= 50:  # Einheitlich auf 50 pro Minute
         return {
             "error": "RATE_LIMIT_EXCEEDED",
             "tool_name": tool_name,
             "current_calls": call_count,
-            "limit": 20,
+            "limit": 50,
             "retry_after": "Wait 60 seconds",
             "workflow_step": "3/3 - Rate Limited"
         }
@@ -265,38 +265,9 @@ async def call_tool(
 # Tool-Metadaten für Registry
 TOOL_METADATA = {
     "name": "3_call_tool",
-    "description": """⚙️ STEP 3/3: Execute Engineering tools with automatic parameter repair
+    "description": """ Führt ein Tool mit den übergebenen Parametern aus.
+    Wenn Du mehrere Berechnungen mit dem gleichen Tool ausführen musst, verwende immer die Batch-Verarbeitung.
 
-🔧 PARAMETER-EINGABE - KRITISCHES FORMAT:
-• Alle Parameter als Key-Value-Pairs im "parameters"-Objekt
-• Ein Parameter muss "target" sein (zu berechnende Variable)
-• Andere Parameter brauchen Werte mit Einheiten
-
-✅ KORREKT:
-call_tool(tool_name="solve_kesselformel", parameters={
-    "pressure": "100 bar",
-    "wall_thickness": "target",
-    "diameter": "500 mm",
-    "allowable_stress": "200 MPa"
-})
-
-❌ FALSCH: parameters als String oder ohne Einheiten
-
-🔄 BATCH-BERECHNUNGEN (NEU 2025):
-Tools mit has_solving="symbolic"/"numeric" unterstützen Batch-Verarbeitung!
-• ALLE Parameter müssen Listen gleicher Länge sein
-• Jeder Index = ein vollständiger Parametersatz
-• Jeder Satz braucht genau einen 'target'
-
-✅ BATCH-BEISPIEL:
-parameters={
-    "flaeche": ["target", "50 cm²", "target"],
-    "radius": ["5 cm", "10 cm", "15 cm"],
-    "durchmesser": ["10 cm", "target", "30 cm"]
-}
-
-WORKFLOW: Finaler Schritt nach Tool-Discovery und Freischaltung
-SECURITY: Nur freigeschaltete Tools werden ausgeführt
 HELP: Bei Fragen get_tool_details() für Parameter-Info aufrufen""",
     "tags": ["meta"]
 } 

@@ -90,7 +90,7 @@ Der Server implementiert einen Discovery-to-Execution-Workflow:
 
 ### SICHERHEITS-ARCHITEKTUR:
   - Whitelist-basiertes Freischaltungssystem (Freischaltung des Tools durch 2_get_tool_details)
-  - Rate-Limiting (max. 10 Aufrufe pro Tool/Minute)
+  - Rate-Limiting (max. 50 Aufrufe pro Tool/Minute)
   - Tools bleiben ohne 2_get_tool_details() deaktiviert
 
 ### PARAMETER-EINGABE FÜR 3_call_tool:
@@ -199,7 +199,7 @@ TOOL_METADATA = {
 
 Umfassende Dokumentation der korrekten Server-Verwendung
 Rufe dieses Tool zu Beginn jeder Konversation mindestens einmal auf, um die korrekte Verwendung des Servers zu erfahren.
-Rufe dieses Tool mindestens einmal pro Sitzung auf, bevor Du ein anderes Tool aufrufst.
+Wenn Du dieses Tool bereits aufgerufen hast und der Inhalt noch in Deinem Gedächtnis ist, rufe dieses Tool nicht erneut auf.
 AUFRUF: Parameterlos - server_informations()""",
     "tags": ["meta"]
 }

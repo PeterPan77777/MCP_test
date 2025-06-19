@@ -67,11 +67,11 @@ async def get_tool_details(
     
     # Rate Limiting Check
     call_count = get_call_count(tool_name)
-    if call_count >= 10:
+    if call_count >= 50:
         return {
             "error": "Rate Limit reached",
             "tool_name": tool_name,
-            "limit_info": "Too many calls for this tool (max. 10 per minute)",
+            "limit_info": "Too many calls for this tool (max. 50 per minute)",
             "retry_after": "Wait until next minute"
         }
     
@@ -117,23 +117,10 @@ async def get_tool_details(
 # Tool-Metadaten für Registry
 TOOL_METADATA = {
     "name": "2_get_tool_details",
-    "description": """📖 Tool Documentation & Activation - Detailed information and unlock system
-
-MAIN FUNCTION: Shows complete tool documentation with parameters and examples
-SECURITY: Unlocks tool for call_tool() execution (whitelist system)
-
-📐 EINHEITEN-OBLIGATION:
-• ALLE numerischen Parameter MÜSSEN physikalische Einheiten enthalten
-• Format: "Wert Einheit" (z.B. "100 bar", "50 mm", "200 MPa")
-• Keine einheitenlosen Zahlen erlaubt bei Engineering-Berechnungen
-
-🔒 SICHERHEITS-ARCHITEKTUR:
-• Whitelist-basiertes Freischaltungssystem
-• Rate-Limiting (max. 10 Aufrufe pro Tool/Minute)
-• Tools bleiben ohne get_tool_details() deaktiviert
-
-WORKFLOW: Schritt 2/3 → dann 3_call_tool(tool_name, parameters)
-MANDATORY: Erforderlich vor jeder Tool-Ausführung (Freischaltung)!""",
+    "description": """
+    Detailinformationen zu einem spezifischen Engineering‑Tool und Tool‑Freischaltung.
+    Bevor Du ein Tool verwenden kannst, musst Du mindestens einmal pro Konversation 2_get_tool_details für dieses Tool aufrufen, um es freizuschalten.
+""",
     "tags": ["meta"]
 }
 

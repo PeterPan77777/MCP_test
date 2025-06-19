@@ -29,11 +29,22 @@ FUNCTION_PARAM_REIHE_FILTER_EXAMPLE = "['Reihe 1']"
 
 # 🔧 IMPORTS
 from typing import Dict, Optional, List
-import pandas as pd
-import numpy as np
 import sys
 import os
 import re
+
+# 🔧 LAZY IMPORTS: Pandas nur bei Bedarf laden (verhindert Circular Import)
+pd = None
+np = None
+
+def _ensure_pandas():
+    """Lädt Pandas nur bei Bedarf - verhindert Circular Import während Tool Discovery"""
+    global pd, np
+    if pd is None:
+        import pandas as pd_module
+        import numpy as np_module
+        pd = pd_module
+        np = np_module
 
 # Import der gemeinsamen Funktionen
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -72,8 +83,9 @@ def parse_kraft_einheit(kraft_str: str) -> float:
     
     raise ValueError(f"Unbekannte Krafteinheit: {einheit}")
 
-def load_schrauben_datenbank() -> pd.DataFrame:
+def load_schrauben_datenbank():
     """Lädt die Schrauben-CSV-Datenbank."""
+    _ensure_pandas()  # Pandas erst hier laden
     try:
         csv_path = os.path.join(os.path.dirname(__file__), 'Tabellen', 'ISO_Metrische_Gewinde_Komplett.csv')
         df = pd.read_csv(csv_path)
@@ -81,9 +93,9 @@ def load_schrauben_datenbank() -> pd.DataFrame:
     except Exception as e:
         raise Exception(f"Fehler beim Laden der Schrauben-Datenbank: {str(e)}")
 
-def filter_nach_vorspannkraft(df: pd.DataFrame, min_kraft_n: float, schraubentyp: str, 
+def filter_nach_vorspannkraft(df, min_kraft_n: float, schraubentyp: str, 
                              festigkeitsklasse: Optional[str], reibbeiwert: Optional[str],
-                             reihe_filter: Optional[List[str]]) -> pd.DataFrame:
+                             reihe_filter: Optional[List[str]]):
     """
     Filtert DataFrame nach Vorspannkraft-Kriterien.
     
@@ -193,7 +205,7 @@ def get_schmierung_beschreibung(mu_wert: str) -> str:
     }
     return schmierung_map.get(mu_wert, "Unbekannte Schmierung")
 
-def format_suchergebnis(df: pd.DataFrame, min_kraft_kn: float, suchparameter: Dict) -> str:
+def format_suchergebnis(df, min_kraft_kn: float, suchparameter: Dict) -> str:
     """
     Formatiert Suchergebnis als Markdown.
     
@@ -319,6 +331,8 @@ def schrauben_suche_vorspannkraft(
     Returns:
         Dict: Formatierte Suchergebnisse mit Optimierungsempfehlungen
     """
+    
+    _ensure_pandas()  # Pandas laden bevor wir es verwenden
     
     try:
         # Parse Parameter

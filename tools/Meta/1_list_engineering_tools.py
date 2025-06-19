@@ -83,26 +83,53 @@ def list_engineering_tools(
                 }
             ]
 
-    # 2) Parameter validieren --------------------------------------------------
-    if not tags:
+    # 2) Parameter validieren - SPEZIELLER FALL: Leere Tags = Tag-Übersicht --
+    if not tags or (len(tags) == 1 and tags[0] == ""):
         try:
             from engineering_mcp.tag_definitions import get_tag_definitions
             tag_defs = get_tag_definitions()
-            available_tags = ["all"] + sorted(tag_defs.keys()) if tag_defs else ["all"]
-        except Exception:
-            available_tags = ["all", "unknown"]
-        examples = [f"list_engineering_tools(tags=['{t}'])" for t in (available_tags[:4] or ["all"])]
-
-        return [
-            {
-                "error": "INVALID_TOOL_USAGE",
-                "problem": "list_engineering_tools() ohne tags‑Parameter aufgerufen",
-                "required_parameter": "tags",
-                "available_tags": available_tags,
-                "correct_usage": examples,
-                "workflow_step": "1/3 - Ungültige Verwendung",
-            }
-        ]
+            
+            # Erstelle vollständige Tag-Übersicht
+            tag_overview = []
+            for tag, info in tag_defs.items():
+                tag_overview.append({
+                    "tag": tag,
+                    "description": info["description"],
+                    "tool_count": info["tool_count"],
+                    "tools": info["tools"][:5],  # Zeige nur erste 5 Tools
+                    "more_tools": max(0, info["tool_count"] - 5),
+                    "is_known": info["is_known"]
+                })
+            
+            # Sortiere Tags: Bekannte zuerst, dann alphabetisch
+            tag_overview.sort(key=lambda x: (not x["is_known"], x["tag"]))
+            
+            return [
+                {
+                    "status": "TAG_OVERVIEW",
+                    "message": f"Vollständige Tag-Übersicht - {len(tag_defs)} verfügbare Tags",
+                    "available_tags": tag_overview,
+                    "total_tags": len(tag_defs),
+                    "usage_examples": [
+                        "tags=['all'] - Alle Tools anzeigen",
+                        "tags=['elementar'] - Nur grundlegende geometrische Tools",
+                        "tags=['schrauben'] - Nur Schrauben-bezogene Tools",
+                        "tags=['mechanik', 'DIN 13'] - Mehrere Tags kombinieren"
+                    ]
+                }
+            ]
+            
+        except Exception as e:
+            # Fallback bei Tag-System-Fehlern
+            return [
+                {
+                    "error": "TAG_SYSTEM_ERROR",
+                    "problem": f"Tag-System nicht verfügbar: {e}",
+                    "fallback_tags": ["all", "unknown"],
+                    "suggestion": "Verwenden Sie tags=['all'] für alle Tools",
+                    "workflow_step": "1/3 - System-Fehler",
+                }
+            ]
 
     # 3) Tools laden & filtern -------------------------------------------------
     all_tools = get_tool_info_for_llm(include_engineering=True)
@@ -163,20 +190,24 @@ def list_engineering_tools(
 # ------------------------------------------------------------
 TOOL_METADATA = {
     "name": "1_list_engineering_tools",
-    "description": """
-    Listet alle verfügbaren Engineering‑Tools auf.
-    Es ist nicht notwendig, dieses Tool aufzurufen, wenn Du bereits weißt, welches Tool Du aufrufen möchtest.
-    
-    Für eine Liste aller verfügbaren Tags dieser Funktion mindestens einmal pro Konversation mit leeren tag (tags=[""]) aufrufen, um eine vollständige Tag-Liste zu erhalten.
-    
-    TAG-VERWENDUNG:
-    • Alle verfügbaren Tags anzeigen: tags=[""] (leer)
-    • Vollständige Tool‑Übersicht: tags=["all"]
-    • Einzelner Tag: tags=["mechanik"]
-    • Mehrere Tags: tags=["schrauben", "DIN 13"]
+    "description": """Listet verfügbare Engineering‑Tools auf – Einstiegspunkt für Tool-Discovery.
 
-WICHTIGER HINWEIS:
-Verwenden Sie NIEMALS geratene Tags! Rufen zuerst tags=[""] auf um alle verfügbaren Tags zu sehen. Verwende ausschließlich angezeigte Tags.
-""",
+🏷️ TAG-DISCOVERY (Empfohlen für neue Gespräche):
+• tags=[""] oder tags=[] → Zeigt ALLE verfügbaren Tags mit Beschreibungen
+
+📋 TOOL-LISTEN:
+• tags=["all"] → Alle verfügbaren Tools anzeigen
+• tags=["elementar"] → Nur geometrische Grundberechnungen  
+• tags=["schrauben"] → Nur Schrauben-bezogene Tools
+• tags=["mechanik", "DIN 13"] → Mehrere Tags kombinieren
+
+⚠️ WICHTIG: Verwenden Sie NIEMALS geratene Tags! 
+Rufen Sie zuerst tags=[""] auf, um alle verfügbaren Tags zu sehen.
+
+💡 WORKFLOW:
+1. list_engineering_tools(tags=[""]) → Tag-Übersicht erhalten
+2. list_engineering_tools(tags=["gewünschter_tag"]) → Tools filtern  
+3. get_tool_details(tool_name="...") → Tool-Details abrufen
+4. call_tool(tool_name="...", parameters={...}) → Tool ausführen""",
     "tags": ["meta"],
 }

@@ -41,11 +41,22 @@ FUNCTION_PARAM_BERECHNUNG_ZEIGEN_EXAMPLE = "false"
 
 # 🔧 IMPORTS
 from typing import Dict, Optional, List, Union
-import pandas as pd
-import numpy as np
 import sys
 import os
 import re
+
+# 🔧 LAZY IMPORTS: Pandas nur bei Bedarf laden (verhindert Circular Import)
+pd = None
+np = None
+
+def _ensure_pandas():
+    """Lädt Pandas nur bei Bedarf - verhindert Circular Import während Tool Discovery"""
+    global pd, np
+    if pd is None:
+        import pandas as pd_module
+        import numpy as np_module
+        pd = pd_module
+        np = np_module
 
 # Import des CSV-Zugriffs
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -125,8 +136,9 @@ def parse_gewinde_bereich(bereich: Dict) -> Dict:
         "bis_gewinde": bis_info['gewinde_csv']
     }
 
-def load_schrauben_datenbank() -> pd.DataFrame:
+def load_schrauben_datenbank():
     """Lädt die Schrauben-CSV-Datenbank."""
+    _ensure_pandas()  # Pandas erst hier laden
     try:
         csv_path = os.path.join(os.path.dirname(__file__), 'Tabellen', 'ISO_Metrische_Gewinde_Komplett.csv')
         df = pd.read_csv(csv_path)
@@ -134,7 +146,7 @@ def load_schrauben_datenbank() -> pd.DataFrame:
     except Exception as e:
         raise Exception(f"Fehler beim Laden der Schrauben-Datenbank: {str(e)}")
 
-def filter_dataframe(df: pd.DataFrame, **kwargs) -> pd.DataFrame:
+def filter_dataframe(df, **kwargs):
     """
     Filtert DataFrame basierend auf Parametern.
     
@@ -201,7 +213,7 @@ def parse_kraft_einheit(kraft_str: str) -> float:
     
     raise ValueError(f"Unbekannte Krafteinheit: {einheit}")
 
-def format_geometrie_tabelle(row: pd.Series) -> str:
+def format_geometrie_tabelle(row) -> str:
     """Formatiert Geometrie-Daten als Markdown-Tabelle."""
     
     geometrie_data = [
@@ -223,7 +235,7 @@ def format_geometrie_tabelle(row: pd.Series) -> str:
     
     return tabelle
 
-def format_vorspannkraft_tabelle(row: pd.Series, schraubentyp: str) -> str:
+def format_vorspannkraft_tabelle(row, schraubentyp: str) -> str:
     """Formatiert Vorspannkraft-Daten als Markdown-Tabelle."""
     
     # Bestimme Spalten basierend auf Schraubentyp
@@ -266,7 +278,7 @@ def format_vorspannkraft_tabelle(row: pd.Series, schraubentyp: str) -> str:
     
     return tabelle
 
-def format_beide_schraubentypen_tabelle(row: pd.Series) -> str:
+def format_beide_schraubentypen_tabelle(row) -> str:
     """Formatiert Vergleichstabelle für beide Schraubentypen."""
     
     mu_werte = ['µ1 = 0.08', 'µ2 = 0.10', 'µ3 = 0.12', 'µ4 = 0.14', 'µ5 = 0.16']
@@ -304,7 +316,7 @@ def format_beide_schraubentypen_tabelle(row: pd.Series) -> str:
     
     return tabelle
 
-def format_berechnungsdokumentation(row: pd.Series) -> str:
+def format_berechnungsdokumentation(row) -> str:
     """Erstellt vollständige Berechnungsdokumentation."""
     
     doku = f"""## 📝 BERECHNUNGSDOKUMENTATION - {row['Gewinde']}
@@ -402,6 +414,8 @@ def schrauben_datenbank(
         Dict: Formatierte Markdown-Ausgabe der Schraubendaten
     """
     
+    _ensure_pandas()  # Pandas laden bevor wir es verwenden
+    
     try:
         # Lade Datenbank
         df = load_schrauben_datenbank()
@@ -484,7 +498,7 @@ def schrauben_datenbank(
             "hinweis": "Überprüfen Sie die Parameter und versuchen Sie es erneut"
         }
 
-def format_einzelgewinde_ausgabe(row: pd.Series, schraubentyp: str, detail_level: str, berechnung_zeigen: bool) -> Dict:
+def format_einzelgewinde_ausgabe(row, schraubentyp: str, detail_level: str, berechnung_zeigen: bool) -> Dict:
     """Formatiert Ausgabe für ein einzelnes Gewinde."""
     
     # Prüfe Reihe und warne falls nicht Reihe 1
@@ -519,7 +533,7 @@ Es wird empfohlen, **Reihe 1-Gewinde** zu bevorzugen, außer es gibt spezielle G
         "detail_level": detail_level
     }
 
-def format_mehrgewinde_ausgabe(df: pd.DataFrame, schraubentyp: str, detail_level: str) -> Dict:
+def format_mehrgewinde_ausgabe(df, schraubentyp: str, detail_level: str) -> Dict:
     """Formatiert Ausgabe für mehrere Gewinde."""
     
     anzahl = len(df)

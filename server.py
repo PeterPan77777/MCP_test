@@ -88,7 +88,7 @@ Der Server implementiert einen Discovery-to-Execution-Workflow:
 
 ### SICHERHEITS-ARCHITEKTUR:
   - Whitelist-basiertes Freischaltungssystem (Freischaltung des Tools durch 2_get_tool_details)
-  - Rate-Limiting (max. 10 Aufrufe pro Tool/Minute)
+  - Rate-Limiting (max. 50 Aufrufe pro Tool/Minute)
   - Tools bleiben ohne 2_get_tool_details() deaktiviert
 
 ### PARAMETER-EINGABE FÜR 3_call_tool:
