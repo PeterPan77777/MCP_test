@@ -38,7 +38,7 @@ Der Server implementiert einen Discovery-to-Execution-Workflow:
    WORKFLOW-PFLICHT: Muss mindestens einmal pro Konversation (zu Beginn) ausgeführt werden, um verfügbare Toolnamen zu erhalten. Dieses Tool kann nur mir korrekten TAG-Definitionen aufgerufen werden. Um alle verfügbaren Tags zu erhalten,  rufe dieses Tool ohne Parameter / bzw mit "leerem" Paramter auf (tags=[""]). Rate niemals TAGS, um dieses Tool aufzurufen. Du musst die verfügbaren Tags (erhältlich durch den Aufruf mit leerem Tag-Paramter) verwenden.
 
 2. DOKUMENTATION: '2_get_tool_details(tool_name)'
-   - PFLICHT vor jeder Tool-Ausführung (mindestens einmal pro Sitzung, zur Freischaltung des Tools)
+   
    - Aktiviert Tool für Ausführung (Whitelist-System)
    - Liefert vollständige Parameter-Dokumentation
    - Zeigt Anwendungsbeispiele und Einheiten-Anforderungen
@@ -196,6 +196,8 @@ WICHTIGE REGELN:
 TOOL_METADATA = {
     "name": "0_Server_Informations",
     "description": """MCP Engineering Server - Vollständige Nutzungsanleitung
+
+    Dieses Tool muss zu Beginn jeder Konversation mindestens einmal aufgerufen werden, um die korrekte Verwendung des Servers zu erfahren!
 
 Umfassende Dokumentation der korrekten Server-Verwendung
 Rufe dieses Tool zu Beginn jeder Konversation mindestens einmal auf, um die korrekte Verwendung des Servers zu erfahren.
