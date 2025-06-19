@@ -117,12 +117,23 @@ async def get_tool_details(
 # Tool-Metadaten für Registry
 TOOL_METADATA = {
     "name": "2_get_tool_details",
-    "description": """Tool Documentation: Detailed information and unlock system
+    "description": """📖 Tool Documentation & Activation - Detailed information and unlock system
 
 MAIN FUNCTION: Shows complete tool documentation with parameters and examples
 SECURITY: Unlocks tool for call_tool() execution (whitelist system)
-WORKFLOW: Step 2/3 -> then 3_call_tool(tool_name, parameters)
-MANDATORY: Required at least once per conversation before any tool execution!""",
+
+📐 EINHEITEN-OBLIGATION:
+• ALLE numerischen Parameter MÜSSEN physikalische Einheiten enthalten
+• Format: "Wert Einheit" (z.B. "100 bar", "50 mm", "200 MPa")
+• Keine einheitenlosen Zahlen erlaubt bei Engineering-Berechnungen
+
+🔒 SICHERHEITS-ARCHITEKTUR:
+• Whitelist-basiertes Freischaltungssystem
+• Rate-Limiting (max. 10 Aufrufe pro Tool/Minute)
+• Tools bleiben ohne get_tool_details() deaktiviert
+
+WORKFLOW: Schritt 2/3 → dann 3_call_tool(tool_name, parameters)
+MANDATORY: Erforderlich vor jeder Tool-Ausführung (Freischaltung)!""",
     "tags": ["meta"]
 }
 

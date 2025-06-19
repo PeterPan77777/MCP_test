@@ -1,20 +1,22 @@
-from fastmcp import FastMCP, Context
-import datetime
-from typing import Dict, List, Any
-from engineering_mcp.registry import (
-    discover_engineering_tools,
-    get_tool_info_for_llm, 
-    call_engineering_tool,
-    get_tool_details as get_tool_details_from_registry
-)
+#!/usr/bin/env python3
+"""
+Server Informations Meta-Tool
 
-# Session State wird jetzt zentral in tools.Meta.session_state verwaltet
+Stellt umfassende Informationen über die korrekte Verwendung des MCP Engineering Servers bereit.
+Einstiegspunkt für neue Benutzer und Referenz für den korrekten Workflow.
+"""
 
-# MCP Server mit ausführlichen Instructions für LLMs
-mcp = FastMCP(
-    name="EngineersCalc", 
-    instructions="""
-# Engineering Calculation Server - geprüfte Berechnungstools, Tabellenwerke und Informationen für Ingenieure
+from typing import Dict
+
+def server_informations() -> Dict:
+    """
+    Gibt vollständige Serverinformationen und Nutzungsanweisungen zurück.
+    
+    Returns:
+        Dict: Umfassende Serverdokumentation mit Workflow-Anweisungen
+    """
+    
+    server_info = """# Engineering Calculation Server - geprüfte Berechnungstools, Tabellenwerke und Informationen für Ingenieure
 
 ## SYSTEMÜBERSICHT:
 Dieser Server bietet Zugriff auf eine spezialisierte Engineering-Tool-Bibliothek mit symbolischen und numerischen Berechnungstools für den Bereich Maschinenbau. Ebenso werden normkonforme Berechnungen nach DIN und weiteren Normen, sowie Tabellenwerke und Informationstexte bereitgestellt.
@@ -169,139 +171,35 @@ WICHTIGE REGELN:
 
 ## Paralleler Toolaufruf
 
-  Wenn Dir der Toolname und die Tool-Details eines Tools bekannt sind, so kannst Du dieses Tool mehrfach direkt hintereinander aufrufen (parallele Aufrufe), ohne dass du andere Tools verwenden musst. Beachte jedoch, dass alle Berechnungstools die Batch-Verarbeitung zur Berechnung mehrerer Ergebnissätze unterstützten. Die Batchverarbeitung ist immer dem parallelen Toolaufruf vorzuziehen. Fordert der Benutzer explizit parallele Toolaufrufe, so führe diese aus.
+  Wenn Dir der Toolname und die Tool-Details eines Tools bekannt sind, so kannst Du dieses Tool mehrfach direkt hintereinander aufrufen (parallele Aufrufe), ohne dass du andere Tools verwenden musst. Beachte jedoch, dass alle Berechnungstools die Batch-Verarbeitung zur Berechnung mehrerer Ergebnissätze unterstützten. Die Batchverarbeitung ist immer dem parallelen Toolaufruf vorzuziehen. Fordert der Benutzer explizit parallele Toolaufrufe, so führe diese aus."""
 
+    return {
+        "status": "SUCCESS",
+        "server_documentation": server_info,
+        "quick_start_guide": {
+            "step_1": "Verwende 1_list_engineering_tools(tags=['']) um alle verfügbaren Tags zu sehen",
+            "step_2": "Dann 1_list_engineering_tools(tags=['all']) für vollständige Tool-Übersicht",
+            "step_3": "Wähle ein Tool und rufe 2_get_tool_details(tool_name='...') auf",
+            "step_4": "Führe das Tool mit 3_call_tool(tool_name='...', parameters={...}) aus"
+        },
+        "critical_reminders": [
+            "Alle Parameter brauchen Einheiten (z.B. '100 bar', '50 mm')",
+            "Genau ein Parameter muss 'target' sein",
+            "Tools müssen vor Ausführung freigeschaltet werden",
+            "Batch-Mode für Massenberechnungen verfügbar"
+        ],
+        "tool_type": "meta",
+        "workflow_position": "0/3 - Serverinformationen und Einstiegshilfe"
+    }
 
-"""
-)
+# Tool-Metadaten für Registry
+TOOL_METADATA = {
+    "name": "0_Server_Informations",
+    "description": """MCP Engineering Server - Vollständige Nutzungsanleitung
 
-# ===== DIREKTE META-TOOL-REGISTRIERUNG =====
-
-# Import der Meta-Tool-Module (mit importlib für numerische Präfixe)
-import importlib
-import tools.Meta.clock as clock_module
-server_informations_module = importlib.import_module("tools.Meta.0_Server_Informations")
-list_engineering_tools_module = importlib.import_module("tools.Meta.1_list_engineering_tools")
-get_tool_details_module = importlib.import_module("tools.Meta.2_get_tool_details")
-call_tool_module = importlib.import_module("tools.Meta.3_call_tool")
-
-# Registriere Clock-Tool (automatische Metadaten-Extraktion)
-@mcp.tool(
-    name=clock_module.TOOL_METADATA["name"],
-    description=clock_module.TOOL_METADATA["description"]
-)
-def clock_tool() -> str:
-    return clock_module.clock()
-
-# Registriere Server Informations Tool
-@mcp.tool(
-    name=server_informations_module.TOOL_METADATA["name"],
-    description=server_informations_module.TOOL_METADATA["description"]
-)
-def server_informations_tool() -> Dict:
-    return server_informations_module.server_informations()
-
-# Registriere List Engineering Tools
-@mcp.tool(
-    name=list_engineering_tools_module.TOOL_METADATA["name"],
-    description=list_engineering_tools_module.TOOL_METADATA["description"]
-)
-async def list_engineering_tools_tool(tags: List[str], ctx: Context = None) -> Dict:
-    # Diese Funktion braucht nur tags Parameter
-    return list_engineering_tools_module.list_engineering_tools(tags=tags)
-
-# Registriere Get Tool Details
-@mcp.tool(
-    name=get_tool_details_module.TOOL_METADATA["name"],
-    description=get_tool_details_module.TOOL_METADATA["description"]
-)
-async def get_tool_details_tool(tool_name: str = "", ctx: Context = None) -> Dict:
-    # Reine Weiterleitung - alle Logik in Meta-Tool
-    return await get_tool_details_module.get_tool_details(tool_name=tool_name)
-
-# Registriere Call Tool
-@mcp.tool(
-    name=call_tool_module.TOOL_METADATA["name"],
-    description=call_tool_module.TOOL_METADATA["description"]
-)
-async def call_tool_tool(tool_name: str = "", parameters: Dict[str, Any] = {}, ctx: Context = None) -> Dict:
-    # Reine Weiterleitung - alle Logik in Meta-Tool
-    return await call_tool_module.call_tool(tool_name=tool_name, parameters=parameters)
-
-async def init_all_tools():
-    """Initialisiert Engineering-Tools"""
-    
-    # Entdecke Engineering-Tools (bleiben in separater Registry)
-    engineering_count = await discover_engineering_tools()
-    
-    # Tag-System validieren (nach Discovery, um Circular Imports zu vermeiden)
-    try:
-        from engineering_mcp.tag_definitions import validate_tag_system, get_tag_statistics, get_tag_definitions, clear_tag_cache
-        
-        # Cache leeren um aktuelle Änderungen zu erkennen
-        clear_tag_cache()
-        
-        print("\n🏷️ TAG-SYSTEM ANALYSE:")
-        print("=" * 50)
-        
-        # Hole detaillierte Statistiken
-        stats = get_tag_statistics()
-        print(f"📊 STATISTIKEN:")
-        print(f"   Gesamt Tags im System: {stats['total_tags']}")
-        print(f"   Bekannte Tag-Beschreibungen: {stats['known_tags']}")
-        print(f"   Unbekannte Tags: {stats['unknown_tags']}")
-        print(f"   Gesamt Tools kategorisiert: {stats['total_tools']}")
-        
-        # Zeige TOP Tags
-        print(f"\n🔝 TOP VERWENDETE TAGS:")
-        for tag, count in stats['most_used_tags'][:8]:  # Top 8 zeigen
-            print(f"   {tag}: {count} Tools")
-        
-        # Hole Tag-Definitionen für Details
-        definitions = get_tag_definitions()
-        
-        # Zeige aktive Tag-Kategorien
-        active_tags = {tag: info for tag, info in definitions.items() if info['tool_count'] > 0}
-        print(f"\n📂 AKTIVE TAG-KATEGORIEN ({len(active_tags)}):")
-        for tag, info in sorted(active_tags.items(), key=lambda x: x[1]['tool_count'], reverse=True):
-            tools_preview = ', '.join(info['tools'][:3])
-            if len(info['tools']) > 3:
-                tools_preview += f" ... (+{len(info['tools'])-3} weitere)"
-            print(f"   ✅ {tag} ({info['tool_count']}): {tools_preview}")
-        
-        # Validierungswarnungen
-        warnings = validate_tag_system()
-        if warnings:
-            print(f"\n⚠️ VALIDIERUNG:")
-            for warning in warnings:
-                print(f"   {warning}")
-        else:
-            print(f"\n✅ VALIDIERUNG: Alle Tags korrekt definiert")
-        
-        print("")  # Leerzeile für bessere Lesbarkeit
-        
-    except Exception as e:
-        print(f"⚠️ Tag-System Analyse fehlgeschlagen: {e}")
-    
-    # Meta-Tools sind bereits bei Import registriert worden
-    meta_count = 5  # clock, server_informations, list_engineering_tools, get_tool_details, call_tool
-    
-    # Zeige Gesamtübersicht
-    total_tools = meta_count + engineering_count
-    print(f"✅ {meta_count} Meta-Tools direkt registriert")
-    print(f"✅ {engineering_count} Engineering-Tools entdeckt")
-    print(f"🎯 Server bereit: {total_tools} Tools verfügbar")
-    print(f"   • {meta_count} Meta-Tools (direkt verfügbar)")
-    print(f"   • {engineering_count} Engineering-Tools (über call_tool)")
-    print(f"🎯 3-stufiger Discovery-Workflow aktiviert:")
-    print(f"   0. 0_Server_Informations (Serverdokumentation)")
-    print(f"   1. 1_list_engineering_tools")  
-    print(f"   2. 2_get_tool_details")
-    print(f"   3. 3_call_tool")
-    
-    return total_tools
-
-# Server-Initialisierung
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(init_all_tools()) 
+Umfassende Dokumentation der korrekten Server-Verwendung
+Rufe dieses Tool zu Beginn jeder Konversation mindestens einmal auf, um die korrekte Verwendung des Servers zu erfahren.
+Rufe dieses Tool mindestens einmal pro Sitzung auf, bevor Du ein anderes Tool aufrufst.
+AUFRUF: Parameterlos - server_informations()""",
+    "tags": ["meta"]
+}

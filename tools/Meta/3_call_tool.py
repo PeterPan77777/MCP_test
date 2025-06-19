@@ -6,7 +6,7 @@ Führt Engineering-Tools aus mit ultra-toleranter Parameter-Reparatur.
 Dritter und finaler Schritt im Discovery-Workflow.
 """
 
-from typing import Dict, Any, Annotated, Optional, Union
+from typing import Dict, Any, Annotated, Optional, Union, List
 from pydantic import Field, ValidationError
 import json
 import re
@@ -32,7 +32,7 @@ def _create_dynamic_tool_name_field():
         }
     )
 
-def _clean_parameter_value(value: Any) -> str:
+def _clean_parameter_value(value: Any) -> Union[str, List[str]]:
     """
     Bereinigt Parameter-Werte von häufigen LLM-Syntax-Fehlern.
     
@@ -40,7 +40,21 @@ def _clean_parameter_value(value: Any) -> str:
         value: Roher Parameter-Wert
     
     Returns:
-        str: Bereinigter Parameter-Wert
+        Union[str, List[str]]: Bereinigter Parameter-Wert (String oder Liste für Batch-Mode)
+    """
+    if value is None:
+        return "target"
+    
+    # ✅ NEU: Listen für Batch-Mode unverändert lassen
+    if isinstance(value, list):
+        # Bereinige jeden Listeneintrag einzeln
+        return [_clean_single_value(item) for item in value]
+    
+    return _clean_single_value(value)
+
+def _clean_single_value(value: Any) -> str:
+    """
+    Bereinigt einen einzelnen Parameter-Wert.
     """
     if value is None:
         return "target"
@@ -61,7 +75,7 @@ def _clean_parameter_value(value: Any) -> str:
     
     return str_value
 
-def _repair_parameters(parameters: Dict[str, Any]) -> Dict[str, str]:
+def _repair_parameters(parameters: Dict[str, Any]) -> Dict[str, Union[str, List[str]]]:
     """
     Repariert Parameter-Dictionary von häufigen LLM-Syntax-Fehlern.
     
@@ -69,7 +83,7 @@ def _repair_parameters(parameters: Dict[str, Any]) -> Dict[str, str]:
         parameters: Roh-Parameter vom LLM
         
     Returns:
-        Dict[str, str]: Bereinigte Parameter
+        Dict[str, Union[str, List[str]]]: Bereinigte Parameter (unterstützt Batch-Mode)
     """
     if not parameters:
         return {}
@@ -251,12 +265,38 @@ async def call_tool(
 # Tool-Metadaten für Registry
 TOOL_METADATA = {
     "name": "3_call_tool",
-    "description": """STEP 3/3: Executes Engineering tools with automatic parameter repair.
+    "description": """⚙️ STEP 3/3: Execute Engineering tools with automatic parameter repair
 
-WORKFLOW: Final execution step after tool discovery and unlocking
-SECURITY: Only executes tools unlocked via get_tool_details()
-PARAMETER FORMAT: All values require units (e.g. "100 bar", "50 mm", "target")
-USAGE: All parameters must be provided with exactly one set to "target" (the value to solve for)
-HELP: For questions about tool usage, call get_tool_details() first to get parameter information""",
+🔧 PARAMETER-EINGABE - KRITISCHES FORMAT:
+• Alle Parameter als Key-Value-Pairs im "parameters"-Objekt
+• Ein Parameter muss "target" sein (zu berechnende Variable)
+• Andere Parameter brauchen Werte mit Einheiten
+
+✅ KORREKT:
+call_tool(tool_name="solve_kesselformel", parameters={
+    "pressure": "100 bar",
+    "wall_thickness": "target",
+    "diameter": "500 mm",
+    "allowable_stress": "200 MPa"
+})
+
+❌ FALSCH: parameters als String oder ohne Einheiten
+
+🔄 BATCH-BERECHNUNGEN (NEU 2025):
+Tools mit has_solving="symbolic"/"numeric" unterstützen Batch-Verarbeitung!
+• ALLE Parameter müssen Listen gleicher Länge sein
+• Jeder Index = ein vollständiger Parametersatz
+• Jeder Satz braucht genau einen 'target'
+
+✅ BATCH-BEISPIEL:
+parameters={
+    "flaeche": ["target", "50 cm²", "target"],
+    "radius": ["5 cm", "10 cm", "15 cm"],
+    "durchmesser": ["10 cm", "target", "30 cm"]
+}
+
+WORKFLOW: Finaler Schritt nach Tool-Discovery und Freischaltung
+SECURITY: Nur freigeschaltete Tools werden ausgeführt
+HELP: Bei Fragen get_tool_details() für Parameter-Info aufrufen""",
     "tags": ["meta"]
 } 
